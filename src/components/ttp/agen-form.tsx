@@ -10,8 +10,20 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Plus, Trash2, ChevronDown, Link2, ExternalLink, Lock, Info } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  ChevronDown,
+  Link2,
+  ExternalLink,
+  Lock,
+  Info,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 import { VillageAutocomplete } from './village-autocomplete'
+import { BulkImportFarmers } from './bulk-import-dialog'
 import { useState, useEffect, useRef } from 'react'
 
 interface AgenFormProps {
@@ -27,6 +39,7 @@ export function AgenForm({ readOnly = false }: AgenFormProps) {
     addFarmer,
     updateFarmer,
     removeFarmer,
+    setFarmers,
     setActiveTab,
     focusAgenNo,
     clearFocusAgen,
@@ -100,6 +113,7 @@ export function AgenForm({ readOnly = false }: AgenFormProps) {
               addFarmer={addFarmer}
               updateFarmer={updateFarmer}
               removeFarmer={removeFarmer}
+              setFarmers={setFarmers}
               isFocused={focusAgenNo === a.no}
               onClearFocus={clearFocusAgen}
               onJumpToSupplier={() => {
@@ -124,6 +138,7 @@ interface AgenCardProps {
   addFarmer: ReturnType<typeof useTtpStore.getState>['addFarmer']
   updateFarmer: ReturnType<typeof useTtpStore.getState>['updateFarmer']
   removeFarmer: ReturnType<typeof useTtpStore.getState>['removeFarmer']
+  setFarmers: ReturnType<typeof useTtpStore.getState>['setFarmers']
   isFocused: boolean
   onClearFocus: () => void
   onJumpToSupplier: () => void
@@ -138,13 +153,26 @@ function AgenCard({
   addFarmer,
   updateFarmer,
   removeFarmer,
+  setFarmers,
   isFocused,
   onClearFocus,
   onJumpToSupplier,
   readOnly = false,
 }: AgenCardProps) {
   const [open, setOpen] = useState(true)
+  const [showImport, setShowImport] = useState(false)
+  const [farmerPage, setFarmerPage] = useState(0)
   const cardRef = useRef<HTMLDivElement>(null)
+
+  const FARMERS_PER_PAGE = 50
+  const totalFarmers = data.farmers.length
+  const totalPages = Math.max(1, Math.ceil(totalFarmers / FARMERS_PER_PAGE))
+  // Clamp page to valid range (derived, no setState needed)
+  const currentPage = Math.max(0, Math.min(farmerPage, totalPages - 1))
+  const pagedFarmers = data.farmers.slice(
+    currentPage * FARMERS_PER_PAGE,
+    (currentPage + 1) * FARMERS_PER_PAGE
+  )
 
   useEffect(() => {
     if (isFocused && cardRef.current) {
@@ -334,15 +362,67 @@ function AgenCard({
 
               {/* Farmers table */}
               <div className="space-y-2 pt-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium">Informasi Petani ({data.farmers.length} petani)</h4>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h4 className="text-sm font-medium">
+                    Informasi Petani ({data.farmers.length.toLocaleString('id-ID')} petani)
+                    {totalPages > 1 && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        · Hal {currentPage + 1}/{totalPages}
+                      </span>
+                    )}
+                  </h4>
                   {!readOnly && (
-                    <Button size="sm" variant="outline" onClick={() => addFarmer(agenIdx)}>
-                      <Plus className="h-3.5 w-3.5 mr-1" />
-                      Tambah Petani
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addFarmer(agenIdx)}
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Tambah Petani
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => setShowImport(true)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Upload className="h-3.5 w-3.5 mr-1" />
+                        Import Massal
+                      </Button>
+                    </div>
                   )}
                 </div>
+
+                {/* Bulk import hint for empty farmer list */}
+                {data.farmers.length === 0 && !readOnly && (
+                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                    <strong>Tip:</strong> Untuk agen dengan ratusan/ribuan petani, gunakan{' '}
+                    <strong>&quot;Import Massal&quot;</strong> — tempel langsung dari Excel
+                    (Ctrl+C → Ctrl+V) atau unggah file CSV. Tidak perlu mengisi satu per satu.
+                  </div>
+                )}
+
+                <BulkImportFarmers
+                  open={showImport}
+                  agenName={data.namaAgen || `Agen #${data.no}`}
+                  existingCount={data.farmers.length}
+                  onImport={(newFarmers, mode) => {
+                    if (mode === 'append') {
+                      // Append to existing farmers
+                      const combined = [...data.farmers, ...newFarmers]
+                      setFarmers(agenIdx, combined)
+                      // Jump to the page where new farmers start
+                      const newPage = Math.floor((combined.length - 1) / FARMERS_PER_PAGE)
+                      setFarmerPage(newPage)
+                    } else {
+                      // Replace all
+                      setFarmers(agenIdx, newFarmers)
+                      setFarmerPage(0)
+                    }
+                  }}
+                  onClose={() => setShowImport(false)}
+                />
                 <div className="rounded-md border overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-muted/50">
@@ -369,7 +449,8 @@ function AgenCard({
                           </td>
                         </tr>
                       ) : (
-                        data.farmers.map((f, fIdx) => {
+                        pagedFarmers.map((f, localIdx) => {
+                          const fIdx = currentPage * FARMERS_PER_PAGE + localIdx
                           const pctLuas = totalLuas > 0 ? (f.luasKebun || 0) / totalLuas : 0
                           const estVol = pctLuas * totalVolume
                           return (
@@ -524,6 +605,58 @@ function AgenCard({
                     )}
                   </table>
                 </div>
+
+                {/* Pagination controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">
+                      Menampilkan {currentPage * FARMERS_PER_PAGE + 1}–
+                      {Math.min((currentPage + 1) * FARMERS_PER_PAGE, totalFarmers)} dari{' '}
+                      {totalFarmers.toLocaleString('id-ID')} petani
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2"
+                        onClick={() => setFarmerPage(0)}
+                        disabled={currentPage === 0}
+                      >
+                        « Awal
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setFarmerPage(currentPage - 1)}
+                        disabled={currentPage === 0}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <span className="text-xs px-2 tabular-nums">
+                        {currentPage + 1} / {totalPages}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setFarmerPage(currentPage + 1)}
+                        disabled={currentPage >= totalPages - 1}
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2"
+                        onClick={() => setFarmerPage(totalPages - 1)}
+                        disabled={currentPage >= totalPages - 1}
+                      >
+                        Akhir »
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </CollapsibleContent>

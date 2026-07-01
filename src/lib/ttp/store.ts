@@ -144,6 +144,7 @@ export interface TtpState {
   addFarmer: (agenIdx: number) => void
   updateFarmer: (agenIdx: number, fIdx: number, patch: Partial<FarmerRow>) => void
   removeFarmer: (agenIdx: number, fIdx: number) => void
+  setFarmers: (agenIdx: number, farmers: FarmerRow[]) => void
 
   markClean: () => void
   setSaving: (s: boolean) => void
@@ -340,6 +341,15 @@ export const useTtpStore = create<TtpState>((set, get) => ({
         .filter((_, i) => i !== fIdx)
         .map((f, i) => ({ ...f, no: i + 1 }))
       next[agenIdx] = { ...next[agenIdx], farmers }
+      return { agen: next, isDirty: true }
+    }),
+
+  setFarmers: (agenIdx, farmers) =>
+    set((st) => {
+      const next = [...st.agen]
+      // Re-number sequentially
+      const renumbered = farmers.map((f, i) => ({ ...f, no: i + 1 }))
+      next[agenIdx] = { ...next[agenIdx], farmers: renumbered }
       return { agen: next, isDirty: true }
     }),
 
