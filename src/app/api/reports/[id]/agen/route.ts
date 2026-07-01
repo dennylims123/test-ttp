@@ -24,6 +24,7 @@ export async function PUT(
         bujur: a.bujur || null,
         desaSumber: a.desaSumber || null,
         volumeTbs: a.volumeTbs ?? null,
+        linkedSupplierNo: a.linkedSupplierNo ?? null,
       },
     })
 

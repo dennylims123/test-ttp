@@ -12,16 +12,18 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { TableCell, TableRow } from '@/components/ui/table'
-import { Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus, Users, ArrowRight } from 'lucide-react'
 import { VillageAutocomplete } from './village-autocomplete'
+import { Badge } from '@/components/ui/badge'
+
+const AGEN_JENIS = 'Agen / Pengumpul / Ramp'
 
 interface Props {
   section: 'internal' | 'external'
 }
 
 export function SupplierTable({ section }: Props) {
-  const { suppliers, addSupplier, updateSupplier, removeSupplier } = useTtpStore()
+  const { suppliers, addSupplier, updateSupplier, removeSupplier, jumpToAgen, agen } = useTtpStore()
   const rows = suppliers.filter((s) => s.section === section)
   const jenisOptions = section === 'internal' ? JENIS_INTERNAL : JENIS_EKSTERNAL
 
@@ -35,7 +37,6 @@ export function SupplierTable({ section }: Props) {
   }
 
   const handleVillageSelect = (no: number, villageDesa: string, full?: string) => {
-    // Try to parse "Desa, Kecamatan, Kabupaten, Provinsi"
     if (full) {
       const parts = full.split(',').map((p) => p.trim())
       const patch: Partial<SupplierRow> = { desa: villageDesa }
@@ -68,19 +69,24 @@ export function SupplierTable({ section }: Props) {
               <th className="px-2 py-2 text-left font-medium w-24">Peta Kebun</th>
               <th className="px-2 py-2 text-left font-medium w-28">Volume TBS (ton)</th>
               <th className="px-2 py-2 text-left font-medium w-20">Est. Max TBS</th>
+              {section === 'external' && <th className="px-2 py-2 text-left font-medium w-28">Petani</th>}
               <th className="px-2 py-2 text-left font-medium w-10"></th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={16} className="text-center text-muted-foreground py-8">
+                <td colSpan={section === 'external' ? 17 : 16} className="text-center text-muted-foreground py-8">
                   Belum ada data pemasok. Klik &quot;Tambah Baru&quot; untuk menambahkan.
                 </td>
               </tr>
             ) : (
               rows.map((row) => {
                 const estMax = estimateMaxTbs(row)
+                const isAgen = row.jenisPemasok === AGEN_JENIS
+                const linkedAgen = agen.find((a) => a.linkedSupplierNo === row.no)
+                const farmerCount = linkedAgen?.farmers.length || 0
+
                 return (
                   <tr key={row.no} className="border-t hover:bg-muted/30">
                     <td className="px-2 py-1.5">{row.no}</td>
@@ -254,6 +260,25 @@ export function SupplierTable({ section }: Props) {
                     <td className="px-2 py-1 text-xs text-muted-foreground tabular-nums">
                       {estMax > 0 ? estMax.toLocaleString('id-ID') : '-'}
                     </td>
+                    {section === 'external' && (
+                      <td className="px-1 py-1">
+                        {isAgen ? (
+                          <Button
+                            size="sm"
+                            variant={farmerCount > 0 ? 'default' : 'outline'}
+                            className="h-7 text-[11px] gap-1"
+                            onClick={() => jumpToAgen(row.no)}
+                            title={farmerCount > 0 ? `${farmerCount} petani` : 'Belum ada petani'}
+                          >
+                            <Users className="h-3 w-3" />
+                            {farmerCount > 0 ? `${farmerCount}` : 'Isi'}
+                            <ArrowRight className="h-3 w-3" />
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground px-2">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-1 py-1">
                       <Button
                         size="icon"
@@ -277,7 +302,7 @@ export function SupplierTable({ section }: Props) {
           {rows.length > 0 && (
             <tfoot>
               <tr className="border-t-2 bg-muted/40 font-medium">
-                <td colSpan={13} className="px-2 py-2 text-right">
+                <td colSpan={section === 'external' ? 13 : 12} className="px-2 py-2 text-right">
                   Sub-Total Volume TBS ({section === 'internal' ? 'Internal' : 'Eksternal'}):
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums">
@@ -286,6 +311,7 @@ export function SupplierTable({ section }: Props) {
                 <td className="px-2 py-2 text-xs text-muted-foreground tabular-nums">
                   {pctOfTotal.toFixed(2)}%
                 </td>
+                {section === 'external' && <td></td>}
                 <td></td>
               </tr>
             </tfoot>
@@ -293,10 +319,21 @@ export function SupplierTable({ section }: Props) {
         </table>
       </div>
 
-      <Button variant="outline" size="sm" onClick={() => addSupplier(section)}>
-        <Plus className="h-4 w-4 mr-1.5" />
-        Tambah Baru
-      </Button>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <Button variant="outline" size="sm" onClick={() => addSupplier(section)}>
+          <Plus className="h-4 w-4 mr-1.5" />
+          Tambah Baru
+        </Button>
+        {section === 'external' && (
+          <p className="text-[11px] text-muted-foreground">
+            <strong>Agen / Pengumpul / Ramp</strong> — setelah memilih jenis ini, klik tombol{' '}
+            <Badge variant="outline" className="text-[10px] mx-1">
+              <Users className="h-2.5 w-2.5 mr-0.5" /> Isi <ArrowRight className="h-2.5 w-2.5" />
+            </Badge>
+            untuk mengisi daftar petani di tab Agen-Pengumpul.
+          </p>
+        )}
+      </div>
     </div>
   )
 }

@@ -351,7 +351,7 @@ export default function Home() {
 
       {/* Main content */}
       <main className="max-w-[1400px] mx-auto px-4 py-6">
-        <Tabs defaultValue="rekapan" className="w-full">
+        <Tabs value={store.activeTab} onValueChange={(v) => store.setActiveTab(v as any)} className="w-full">
           <TabsList className="w-full justify-start flex-wrap h-auto">
             <TabsTrigger value="rekapan" className="data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
               1. Rekapan TTP (P1.M)

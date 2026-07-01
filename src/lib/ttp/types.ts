@@ -90,6 +90,8 @@ export interface AgenPengumpulRow {
   desaSumber: string
   volumeTbs: number | null
   farmers: FarmerRow[]
+  /** Link to external supplier's `no` field. NULL = manually created (legacy). */
+  linkedSupplierNo: number | null
 }
 
 // ---- Calculation helpers (replicating Excel formulas) ----

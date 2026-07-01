@@ -71,6 +71,7 @@ model SupplierTbs {
 }
 
 /// Phase 2B - Agen/Pengumpul (Indirect supplier with farmer list)
+/// Linked to a SupplierTbs row via linkedSupplierNo (the supplier's `no` field, scoped to section='external')
 model AgenPengumpul {
   id        String @id @default(cuid())
   reportId  String
@@ -83,6 +84,10 @@ model AgenPengumpul {
   bujur        String?
   desaSumber   String?
   volumeTbs    Float?
+
+  /// Link to the SupplierTbs row (section='external', jenisPemasok='Agen / Pengumpul / Ramp')
+  /// Stores the supplier's `no` value (1-23). NULL = unlinked/manual entry (legacy).
+  linkedSupplierNo Int?
 
   farmers Farmer[]
 
