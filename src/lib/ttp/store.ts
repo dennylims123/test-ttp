@@ -103,6 +103,8 @@ export type TabKey = 'rekapan' | 'supplier' | 'agen' | 'summary'
 export interface TtpState {
   reportId: string | null
   reportName: string
+  status: 'DRAFT' | 'PUBLISHED'
+  publishedAt: string | null
   pks: PksInfo
   p1m: P1MData
   suppliers: SupplierRow[]
@@ -112,6 +114,7 @@ export interface TtpState {
   focusAgenNo: number | null
   isDirty: boolean
   isSaving: boolean
+  isPublishing: boolean
   lastSavedAt: string | null
 
   // navigation
@@ -144,7 +147,9 @@ export interface TtpState {
 
   markClean: () => void
   setSaving: (s: boolean) => void
+  setPublishing: (s: boolean) => void
   setLastSavedAt: (s: string | null) => void
+  setStatus: (status: 'DRAFT' | 'PUBLISHED', publishedAt: string | null) => void
 
   loadFromApi: (data: any) => void
   reset: () => void
@@ -153,6 +158,8 @@ export interface TtpState {
 export const useTtpStore = create<TtpState>((set, get) => ({
   reportId: null,
   reportName: '',
+  status: 'DRAFT',
+  publishedAt: null,
   pks: { ...emptyPks },
   p1m: { ...emptyP1m },
   suppliers: [],
@@ -161,6 +168,7 @@ export const useTtpStore = create<TtpState>((set, get) => ({
   focusAgenNo: null,
   isDirty: false,
   isSaving: false,
+  isPublishing: false,
   lastSavedAt: null,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -337,7 +345,9 @@ export const useTtpStore = create<TtpState>((set, get) => ({
 
   markClean: () => set({ isDirty: false }),
   setSaving: (s) => set({ isSaving: s }),
+  setPublishing: (s) => set({ isPublishing: s }),
   setLastSavedAt: (s) => set({ lastSavedAt: s }),
+  setStatus: (status, publishedAt) => set({ status, publishedAt, isDirty: false }),
 
   loadFromApi: (data) => {
     const suppliers: SupplierRow[] = (data.suppliers || []).map((s: any) => ({
@@ -387,6 +397,8 @@ export const useTtpStore = create<TtpState>((set, get) => ({
     set({
       reportId: data.id,
       reportName: data.name || '',
+      status: (data.status as 'DRAFT' | 'PUBLISHED') || 'DRAFT',
+      publishedAt: data.publishedAt || null,
       pks: {
         pksName: data.pksName || '',
         pksAddress: data.pksAddress || '',
@@ -420,6 +432,8 @@ export const useTtpStore = create<TtpState>((set, get) => ({
     set({
       reportId: null,
       reportName: '',
+      status: 'DRAFT',
+      publishedAt: null,
       pks: { ...emptyPks },
       p1m: { ...emptyP1m },
       suppliers: [],
@@ -427,6 +441,7 @@ export const useTtpStore = create<TtpState>((set, get) => ({
       activeTab: 'rekapan',
       focusAgenNo: null,
       isDirty: false,
+      isPublishing: false,
       lastSavedAt: null,
     }),
 }))

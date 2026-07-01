@@ -1,16 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getSession } from '@/lib/ttp/session'
 
-// Bulk replace all AgenPengumpul (+ nested farmers) for a report
+async function getEditableReport(id: string) {
+  const session = await getSession()
+  if (session.role === 'guest') {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+  const report = await db.ttpReport.findUnique({ where: { id } })
+  if (!report) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+  if (session.role === 'pks' && report.pksAccountId !== session.pksAccountId) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+  if (report.status === 'PUBLISHED' && session.role !== 'admin') {
+    return { error: NextResponse.json({ error: 'Laporan sudah dipublikasi' }, { status: 403 }) }
+  }
+  return { report, session }
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const r = await getEditableReport(id)
+  if ('error' in r) return r.error
+
   const body = await req.json()
   const items: Array<any> = body.agen || []
 
-  // Delete existing (cascade will also delete farmers)
   await db.agenPengumpul.deleteMany({ where: { reportId: id } })
 
   for (const a of items) {

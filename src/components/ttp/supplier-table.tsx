@@ -20,9 +20,10 @@ const AGEN_JENIS = 'Agen / Pengumpul / Ramp'
 
 interface Props {
   section: 'internal' | 'external'
+  readOnly?: boolean
 }
 
-export function SupplierTable({ section }: Props) {
+export function SupplierTable({ section, readOnly = false }: Props) {
   const { suppliers, addSupplier, updateSupplier, removeSupplier, jumpToAgen, agen } = useTtpStore()
   const rows = suppliers.filter((s) => s.section === section)
   const jenisOptions = section === 'internal' ? JENIS_INTERNAL : JENIS_EKSTERNAL
@@ -280,19 +281,21 @@ export function SupplierTable({ section }: Props) {
                       </td>
                     )}
                     <td className="px-1 py-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => {
-                          const idx = suppliers.findIndex(
-                            (s) => s.section === section && s.no === row.no
-                          )
-                          if (idx >= 0) removeSupplier(idx)
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {!readOnly ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            const idx = suppliers.findIndex(
+                              (s) => s.section === section && s.no === row.no
+                            )
+                            if (idx >= 0) removeSupplier(idx)
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
                     </td>
                   </tr>
                 )
@@ -320,10 +323,12 @@ export function SupplierTable({ section }: Props) {
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Button variant="outline" size="sm" onClick={() => addSupplier(section)}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          Tambah Baru
-        </Button>
+        {!readOnly && (
+          <Button variant="outline" size="sm" onClick={() => addSupplier(section)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Tambah Baru
+          </Button>
+        )}
         {section === 'external' && (
           <p className="text-[11px] text-muted-foreground">
             <strong>Agen / Pengumpul / Ramp</strong> — setelah memilih jenis ini, klik tombol{' '}

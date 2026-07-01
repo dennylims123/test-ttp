@@ -1,16 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getSession } from '@/lib/ttp/session'
 
-// Bulk replace all suppliers for a report (simple sync approach)
+async function getEditableReport(id: string) {
+  const session = await getSession()
+  if (session.role === 'guest') {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+  const report = await db.ttpReport.findUnique({ where: { id } })
+  if (!report) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+  if (session.role === 'pks' && report.pksAccountId !== session.pksAccountId) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+  // Lock editing of PUBLISHED reports for everyone except admin
+  if (report.status === 'PUBLISHED' && session.role !== 'admin') {
+    return { error: NextResponse.json({ error: 'Laporan sudah dipublikasi' }, { status: 403 }) }
+  }
+  return { report, session }
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const r = await getEditableReport(id)
+  if ('error' in r) return r.error
+
   const body = await req.json()
   const items: Array<any> = body.suppliers || []
 
-  // Delete existing, then re-insert
   await db.supplierTbs.deleteMany({ where: { reportId: id } })
 
   if (items.length > 0) {

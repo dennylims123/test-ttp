@@ -14,7 +14,11 @@ import { Plus, Trash2, ChevronDown, Link2, ExternalLink, Lock, Info } from 'luci
 import { VillageAutocomplete } from './village-autocomplete'
 import { useState, useEffect, useRef } from 'react'
 
-export function AgenForm() {
+interface AgenFormProps {
+  readOnly?: boolean
+}
+
+export function AgenForm({ readOnly = false }: AgenFormProps) {
   const {
     agen,
     addAgen,
@@ -103,6 +107,7 @@ export function AgenForm() {
                   setActiveTab('supplier')
                 }
               }}
+              readOnly={readOnly}
             />
           ))}
         </>
@@ -122,6 +127,7 @@ interface AgenCardProps {
   isFocused: boolean
   onClearFocus: () => void
   onJumpToSupplier: () => void
+  readOnly?: boolean
 }
 
 function AgenCard({
@@ -135,6 +141,7 @@ function AgenCard({
   isFocused,
   onClearFocus,
   onJumpToSupplier,
+  readOnly = false,
 }: AgenCardProps) {
   const [open, setOpen] = useState(true)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -329,10 +336,12 @@ function AgenCard({
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-medium">Informasi Petani ({data.farmers.length} petani)</h4>
-                  <Button size="sm" variant="outline" onClick={() => addFarmer(agenIdx)}>
-                    <Plus className="h-3.5 w-3.5 mr-1" />
-                    Tambah Petani
-                  </Button>
+                  {!readOnly && (
+                    <Button size="sm" variant="outline" onClick={() => addFarmer(agenIdx)}>
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Tambah Petani
+                    </Button>
+                  )}
                 </div>
                 <div className="rounded-md border overflow-x-auto">
                   <table className="w-full text-xs">
@@ -478,14 +487,16 @@ function AgenCard({
                                   : '-'}
                               </td>
                               <td className="px-1 py-1">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7 text-destructive hover:text-destructive"
-                                  onClick={() => removeFarmer(agenIdx, fIdx)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                {!readOnly ? (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 text-destructive hover:text-destructive"
+                                    onClick={() => removeFarmer(agenIdx, fIdx)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                ) : null}
                               </td>
                             </tr>
                           )

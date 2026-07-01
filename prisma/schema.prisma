@@ -9,12 +9,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// A PKS (Pabrik Kelapa Sawit) account that can submit TTP reports.
+/// Auth is via simple 6-digit PIN.
+model PksAccount {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  pin       String   // 6-digit PIN
+  createdAt DateTime @default(now())
+
+  reports TtpReport[]
+
+  @@map("pks_accounts")
+}
+
 /// A saved TTP form report (a PKS can have multiple reporting periods)
 model TtpReport {
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Owner (PKS account) — nullable for legacy reports created before auth
+  pksAccountId String?
+  pksAccount   PksAccount? @relation(fields: [pksAccountId], references: [id], onDelete: SetNull)
+
+  // Status: "DRAFT" (editable by PKS) | "PUBLISHED" (locked for PKS, admin can revert)
+  status      String   @default("DRAFT")
+  publishedAt DateTime?
 
   // PKS info
   pksName      String?

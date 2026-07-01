@@ -15,7 +15,11 @@ function fmt(n: number | null | undefined, digits = 2) {
   return n.toLocaleString('id-ID', { maximumFractionDigits: digits })
 }
 
-export function RekapanTtp() {
+interface RekapanTtpProps {
+  readOnly?: boolean
+}
+
+export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
   const { pks, p1m, setPks, setP1m, suppliers } = useTtpStore()
   const s = computeSummary(suppliers)
   const ttpPct = computeTtpPercent(suppliers)
@@ -43,6 +47,7 @@ export function RekapanTtp() {
               value={pks.pksName}
               onChange={(e) => setPks({ pksName: e.target.value })}
               placeholder="Nama PKS yang melaporkan"
+              disabled={readOnly}
             />
           </div>
           <div className="space-y-1.5">
@@ -51,6 +56,7 @@ export function RekapanTtp() {
               value={pks.reportDate}
               onChange={(e) => setPks({ reportDate: e.target.value })}
               placeholder="Contoh: 27 Desember 2024"
+              disabled={readOnly}
             />
           </div>
           <div className="space-y-1.5 md:col-span-2">
@@ -60,6 +66,7 @@ export function RekapanTtp() {
               onChange={(e) => setPks({ pksAddress: e.target.value })}
               placeholder="Alamat PKS, mulai dari nama jalan (jika ada), desa, kecamatan, kabupaten, provinsi"
               className="min-h-[60px]"
+              disabled={readOnly}
             />
           </div>
           <div className="space-y-1.5">
@@ -70,6 +77,7 @@ export function RekapanTtp() {
               value={pks.pksLatitude}
               onChange={(e) => setPks({ pksLatitude: e.target.value })}
               placeholder="-0.001780"
+              disabled={readOnly}
             />
           </div>
           <div className="space-y-1.5">
@@ -80,6 +88,7 @@ export function RekapanTtp() {
               value={pks.pksLongitude}
               onChange={(e) => setPks({ pksLongitude: e.target.value })}
               placeholder="101.353716"
+              disabled={readOnly}
             />
           </div>
           <div className="space-y-1.5">
@@ -88,6 +97,7 @@ export function RekapanTtp() {
               value={pks.periode}
               onChange={(e) => setPks({ periode: e.target.value })}
               placeholder="Contoh: 1 Juli - 31 Desember 2024"
+              disabled={readOnly}
             />
           </div>
           <div className="space-y-1.5">
@@ -96,6 +106,7 @@ export function RekapanTtp() {
               value={pks.pengisi}
               onChange={(e) => setPks({ pengisi: e.target.value })}
               placeholder="Nama pengisi form"
+              disabled={readOnly}
             />
           </div>
         </CardContent>
@@ -169,6 +180,7 @@ export function RekapanTtp() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <fieldset disabled={readOnly} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Produksi TBS Bersertifikat (ton/tahun)</Label>
@@ -330,6 +342,7 @@ export function RekapanTtp() {
               className="min-h-[80px]"
             />
           </div>
+          </fieldset>
         </CardContent>
       </Card>
     </div>
