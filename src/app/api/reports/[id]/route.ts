@@ -1,33 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSession } from '@/lib/ttp/session'
 
-async function getOwnedReport(id: string) {
-  const session = await getSession()
-  if (session.role === 'guest') return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-
-  const report = await db.ttpReport.findUnique({
-    where: { id },
-    include: {
-      _count: { select: { suppliers: true, agenPengumpul: true } },
-      pksAccount: { select: { name: true } },
-    },
-  })
-  if (!report) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
-
-  // PKS can only see their own reports; admin can see all
-  if (session.role === 'pks' && report.pksAccountId !== session.pksAccountId) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
-  }
-  return { report, session }
-}
-
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params
-  const r = await getOwnedReport(id)
-  if ('error' in r) return r.error
-
-  const full = await db.ttpReport.findUnique({
+  const report = await db.ttpReport.findUnique({
     where: { id },
     include: {
       suppliers: { orderBy: { no: 'asc' } },
@@ -37,24 +16,28 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       },
     },
   })
-  return NextResponse.json(full)
+  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(report)
 }
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params
-  const r = await getOwnedReport(id)
-  if ('error' in r) return r.error
+  const report = await db.ttpReport.findUnique({ where: { id } })
+  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // PKS cannot edit PUBLISHED reports
-  if (r.session.role === 'pks' && r.report.status === 'PUBLISHED') {
+  // Lock editing of PUBLISHED reports
+  if (report.status === 'PUBLISHED') {
     return NextResponse.json(
-      { error: 'Laporan sudah dipublikasi dan tidak dapat diubah. Hubungi admin untuk membuka kembali.' },
+      { error: 'Laporan sudah dipublikasi dan tidak dapat diubah. Buka kembali via Rekap Admin.' },
       { status: 403 }
     )
   }
 
   const body = await req.json()
-  const report = await db.ttpReport.update({
+  const updated = await db.ttpReport.update({
     where: { id },
     data: {
       name: body.name,
@@ -79,18 +62,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       p1mSistemDetail: body.p1mSistemDetail ?? null,
     },
   })
-  return NextResponse.json(report)
+  return NextResponse.json(updated)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params
-  const r = await getOwnedReport(id)
-  if ('error' in r) return r.error
+  const report = await db.ttpReport.findUnique({ where: { id } })
+  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Only draft reports can be deleted by PKS; admin can delete any
-  if (r.session.role === 'pks' && r.report.status === 'PUBLISHED') {
+  // Published reports cannot be deleted (must be rejected first)
+  if (report.status === 'PUBLISHED') {
     return NextResponse.json(
-      { error: 'Laporan yang sudah dipublikasi tidak dapat dihapus. Hubungi admin.' },
+      { error: 'Laporan yang sudah dipublikasi tidak dapat dihapus. Buka kembali via Rekap Admin.' },
       { status: 403 }
     )
   }

@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSession } from '@/lib/ttp/session'
 
-// GET /api/admin/reports — admin only: list all reports with stats
+// GET /api/admin/reports — list all reports with stats (open access, no admin auth)
 export async function GET(req: NextRequest) {
-  const session = await getSession()
-  if (session.role !== 'admin') {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 })
-  }
-
   const { searchParams } = new URL(req.url)
   const statusFilter = searchParams.get('status') // 'DRAFT' | 'PUBLISHED' | null
   const q = searchParams.get('q')?.toLowerCase()
@@ -50,7 +44,6 @@ export async function GET(req: NextRequest) {
       .filter((s) => s.section === 'external')
       .reduce((acc, s) => acc + (s.volumeTbs || 0), 0)
 
-    // Omit heavy suppliers array from response
     const { suppliers, ...rest } = r
     return {
       ...rest,

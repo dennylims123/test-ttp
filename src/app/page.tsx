@@ -6,7 +6,6 @@ import { SupplierTable } from '@/components/ttp/supplier-table'
 import { AgenForm } from '@/components/ttp/agen-form'
 import { SummaryPanel } from '@/components/ttp/summary-panel'
 import { RekapanTtp } from '@/components/ttp/rekapan-ttp'
-import { LoginScreen } from '@/components/ttp/login-screen'
 import { AdminRecap } from '@/components/ttp/admin-recap'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -32,19 +31,14 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  LogOut,
-  Shield,
   Lock,
   Send,
   ArrowLeft,
   Eye,
+  BarChart3,
 } from 'lucide-react'
 
-type SessionInfo = {
-  role: 'admin' | 'pks' | 'guest'
-  pksAccountId?: string
-  pksName?: string
-}
+type View = 'form' | 'admin'
 
 interface ReportListItem {
   id: string
@@ -57,123 +51,99 @@ interface ReportListItem {
 }
 
 export default function Home() {
-  const [session, setSession] = useState<SessionInfo | null>(null)
-  const [sessionLoading, setSessionLoading] = useState(true)
-  // Admin viewing a specific report
+  // Initialize view from URL hash so refresh keeps you on the same screen
+  const [view, setView] = useState<View>(() => {
+    if (typeof window === 'undefined') return 'form'
+    const hash = window.location.hash.replace('#', '')
+    return hash === 'admin' ? 'admin' : 'form'
+  })
+  // When admin clicks "Lihat detail" on a report, we switch to form view with that report loaded
   const [adminViewingReportId, setAdminViewingReportId] = useState<string | null>(null)
 
-  // Fetch session on mount
+  // Sync view to URL hash
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((s) => setSession(s))
-      .finally(() => setSessionLoading(false))
-  }, [])
+    window.location.hash = view === 'admin' ? 'admin' : ''
+  }, [view])
 
-  const refreshSession = useCallback(async () => {
-    const r = await fetch('/api/auth/me')
-    const s = await r.json()
-    setSession(s)
-    return s
-  }, [])
-
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    setSession({ role: 'guest' })
+  const openAdminRecap = () => {
+    setView('admin')
     setAdminViewingReportId(null)
   }
 
-  if (sessionLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    )
+  const openForm = () => {
+    setView('form')
+    setAdminViewingReportId(null)
   }
 
-  if (!session || session.role === 'guest') {
-    return (
-      <>
-        <Toaster position="top-right" richColors />
-        <LoginScreen onLoggedIn={() => refreshSession()} />
-      </>
-    )
+  const openReportFromAdmin = (id: string) => {
+    setAdminViewingReportId(id)
+    setView('form')
   }
 
-  // Admin: show recap table by default, or specific report viewer
-  if (session.role === 'admin' && !adminViewingReportId) {
-    return (
-      <>
-        <Toaster position="top-right" richColors />
-        <AdminHeader session={session} onLogout={logout} />
-        <main className="max-w-[1400px] mx-auto px-4 py-6">
-          <AdminRecap
-            onOpenReport={(id) => setAdminViewingReportId(id)}
-          />
-        </main>
-      </>
-    )
-  }
-
-  // PKS view OR admin viewing a specific report
   return (
     <>
       <Toaster position="top-right" richColors />
-      <PksApp
-        session={session}
-        onLogout={logout}
-        adminBackToList={() => setAdminViewingReportId(null)}
-        adminViewing={session.role === 'admin' && !!adminViewingReportId}
-        initialReportId={adminViewingReportId}
-      />
+      {view === 'admin' ? (
+        <AdminView onBackToForm={openForm} onOpenReport={openReportFromAdmin} />
+      ) : (
+        <FormView
+          adminViewingReportId={adminViewingReportId}
+          onBackToAdmin={openAdminRecap}
+          onOpenAdmin={openAdminRecap}
+          isFromAdmin={!!adminViewingReportId}
+        />
+      )}
     </>
   )
 }
 
-// ---------------- Admin Header ----------------
-function AdminHeader({
-  session,
-  onLogout,
+// ---------------- Admin View ----------------
+function AdminView({
+  onBackToForm,
+  onOpenReport,
 }: {
-  session: SessionInfo
-  onLogout: () => void
+  onBackToForm: () => void
+  onOpenReport: (id: string) => void
 }) {
   return (
-    <header className="sticky top-0 z-30 bg-background border-b">
-      <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-slate-800 text-white">
-            <Shield className="h-5 w-5" />
+    <div className="min-h-screen bg-muted/20">
+      <header className="sticky top-0 z-30 bg-background border-b">
+        <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-slate-800 text-white">
+              <BarChart3 className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold">Rekap Admin — Form TTP</h1>
+              <p className="text-xs text-muted-foreground">
+                Rekap semua laporan TTP
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-base font-semibold">Admin Recap — Form TTP</h1>
-            <p className="text-xs text-muted-foreground">
-              Rekap semua laporan TTP dari PKS
-            </p>
-          </div>
+          <Button variant="outline" size="sm" onClick={onBackToForm}>
+            <ArrowLeft className="h-4 w-4 mr-1.5" />
+            Kembali ke Form
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={onLogout}>
-          <LogOut className="h-4 w-4 mr-1.5" />
-          Keluar
-        </Button>
-      </div>
-    </header>
+      </header>
+      <main className="max-w-[1400px] mx-auto px-4 py-6">
+        <AdminRecap onOpenReport={onOpenReport} />
+      </main>
+    </div>
   )
 }
 
-// ---------------- PKS App (or admin viewing one report) ----------------
-function PksApp({
-  session,
-  onLogout,
-  adminBackToList,
-  adminViewing,
-  initialReportId,
+// ---------------- Form View (PKS fills the form, or admin views a published report) ----------------
+function FormView({
+  adminViewingReportId,
+  onBackToAdmin,
+  onOpenAdmin,
+  isFromAdmin,
 }: {
-  session: SessionInfo
-  onLogout: () => void
-  adminBackToList: () => void
-  adminViewing: boolean
-  initialReportId: string | null
+  adminViewingReportId: string | null
+  onBackToAdmin: () => void
+  onOpenAdmin: () => void
+  isFromAdmin: boolean
 }) {
   const store = useTtpStore()
   const [reports, setReports] = useState<ReportListItem[]>([])
@@ -184,40 +154,36 @@ function PksApp({
     setLoadingList(true)
     try {
       const r = await fetch('/api/reports')
-      if (r.status === 401) {
-        onLogout()
-        return
-      }
       const data = await r.json()
       setReports(data)
     } finally {
       setLoadingList(false)
     }
-  }, [onLogout])
+  }, [])
 
   // On mount: either load initialReportId (admin view) or refresh report list
   useEffect(() => {
-    if (initialReportId) {
-      loadReport(initialReportId)
+    if (adminViewingReportId) {
+      loadReport(adminViewingReportId)
     } else {
       refreshReports()
     }
-  }, [initialReportId])
+  }, [adminViewingReportId, refreshReports])
 
-  // Auto-save (debounced) when dirty — only for PKS editing draft reports
+  // Auto-save (debounced) when dirty — skip when viewing published report from admin
   useEffect(() => {
     if (!store.isDirty) return
-    if (adminViewing) return // admin doesn't auto-save
+    if (isFromAdmin) return // admin viewing a report doesn't auto-save
     if (store.status === 'PUBLISHED') return // locked
     const t = setTimeout(async () => {
       await saveAll(false)
     }, 2500)
     return () => clearTimeout(t)
-  }, [store.isDirty, store.suppliers, store.agen, store.pks, store.p1m, store.status, adminViewing])
+  }, [store.isDirty, store.suppliers, store.agen, store.pks, store.p1m, store.status, isFromAdmin])
 
   const saveAll = async (showToast = true) => {
     if (store.isSaving) return
-    if (store.status === 'PUBLISHED' && !adminViewing) {
+    if (store.status === 'PUBLISHED' && !isFromAdmin) {
       if (showToast) toast.error('Laporan sudah dipublikasi, tidak dapat disimpan')
       return
     }
@@ -302,21 +268,19 @@ function PksApp({
     }
     if (
       !confirm(
-        'Publikasi laporan ini? Setelah dipublikasi, laporan tidak dapat diubah sampai admin membuka kembali.'
+        'Publikasi laporan ini? Setelah dipublikasi, laporan tidak dapat diubah sampai dibuka kembali via Rekap Admin.'
       )
     )
       return
 
     store.setPublishing(true)
     try {
-      // Save first
       await saveAll(false)
-      // Then publish
       const r = await fetch(`/api/reports/${store.reportId}/publish`, { method: 'POST' })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || 'Failed to publish')
       store.setStatus('PUBLISHED', new Date().toISOString())
-      toast.success('Laporan berhasil dipublikasi. Admin akan melihatnya di rekap.')
+      toast.success('Laporan berhasil dipublikasi. Laporan akan muncul di Rekap Admin.')
       await refreshReports()
     } catch (e: any) {
       toast.error('Gagal mempublikasi: ' + e.message)
@@ -347,7 +311,7 @@ function PksApp({
 
   const deleteReport = async (id: string, name: string, status: string) => {
     if (status === 'PUBLISHED') {
-      toast.error('Laporan yang sudah dipublikasi tidak dapat dihapus. Hubungi admin.')
+      toast.error('Laporan yang sudah dipublikasi tidak dapat dihapus. Buka kembali via Rekap Admin.')
       return
     }
     if (!confirm(`Hapus laporan "${name}"? Tindakan ini tidak dapat dibatalkan.`)) return
@@ -381,7 +345,7 @@ function PksApp({
   const supplierCount = store.suppliers.length
   const agenCount = store.agen.length
   const isPublished = store.status === 'PUBLISHED'
-  const isLocked = isPublished || adminViewing // lock if published or admin viewing
+  const isLocked = isPublished || isFromAdmin
   const canEdit = !isLocked
 
   return (
@@ -390,8 +354,8 @@ function PksApp({
       <header className="sticky top-0 z-30 bg-background border-b">
         <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
-            {adminViewing ? (
-              <Button variant="ghost" size="sm" onClick={adminBackToList}>
+            {isFromAdmin ? (
+              <Button variant="ghost" size="sm" onClick={onBackToAdmin}>
                 <ArrowLeft className="h-4 w-4 mr-1.5" />
                 Kembali ke Rekap
               </Button>
@@ -402,7 +366,7 @@ function PksApp({
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-base font-semibold truncate">
-                    Form TTP — {session.pksName || 'PKS'}
+                    Form TTP — Traceability to Plantation
                   </h1>
                   <p className="text-xs text-muted-foreground">
                     Kemamputelusuran TBS ke Kebun
@@ -413,20 +377,20 @@ function PksApp({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {isPublished && !adminViewing && (
+            {isPublished && !isFromAdmin && (
               <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
                 <Lock className="h-3 w-3 mr-1" />
                 Dipublikasi
               </Badge>
             )}
-            {adminViewing && (
+            {isFromAdmin && (
               <Badge variant="secondary">
                 <Eye className="h-3 w-3 mr-1" />
-                Mode Admin (read-only)
+                Mode Lihat (Admin)
               </Badge>
             )}
 
-            {!adminViewing && (
+            {!isFromAdmin && (
               <>
                 <Input
                   value={store.reportName}
@@ -448,7 +412,7 @@ function PksApp({
                       Buka
                     </Button>
                   </SheetTrigger>
-                  <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+                  <SheetContent className="w-[400px] sm-w-[540px] overflow-y-auto">
                     <SheetHeader>
                       <SheetTitle>Laporan Tersimpan</SheetTitle>
                     </SheetHeader>
@@ -474,7 +438,7 @@ function PksApp({
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-sm truncate">{r.name}</p>
                                 <p className="text-xs text-muted-foreground truncate">
-                                  {r.pksName || '—'}
+                                  {r.pksName || r.pksAccount?.name || '—'}
                                 </p>
                                 <div className="flex items-center gap-2 mt-1">
                                   {r.status === 'PUBLISHED' && (
@@ -565,10 +529,16 @@ function PksApp({
               Excel
             </Button>
 
-            {!adminViewing && (
-              <Button variant="ghost" size="sm" onClick={onLogout}>
-                <LogOut className="h-4 w-4 mr-1.5" />
-                Keluar
+            {/* Admin recap access button - always visible */}
+            {!isFromAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onOpenAdmin}
+                className="border-slate-300 text-slate-700 hover:bg-slate-100"
+              >
+                <BarChart3 className="h-4 w-4 mr-1.5" />
+                Rekap Admin
               </Button>
             )}
           </div>
@@ -612,15 +582,15 @@ function PksApp({
       <main className="max-w-[1400px] mx-auto px-4 py-6">
         {isLocked && (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2">
-            {adminViewing ? (
+            {isFromAdmin ? (
               <Eye className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             ) : (
               <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             )}
             <span>
-              {adminViewing
-                ? 'Anda masuk sebagai admin. Laporan ini hanya bisa dilihat, tidak bisa diedit dari sini.'
-                : 'Laporan ini sudah dipublikasi dan terkunci. Hubungi admin untuk membuka kembali jika perlu revisi.'}
+              {isFromAdmin
+                ? 'Anda membuka laporan ini dari Rekap Admin. Untuk mengedit, buka kembali ke status DRAFT dari halaman Rekap Admin.'
+                : 'Laporan ini sudah dipublikasi dan terkunci. Untuk merevisi, buka laporan ini di Rekap Admin dan klik "Buka kembali ke DRAFT".'}
             </span>
           </div>
         )}
@@ -656,37 +626,35 @@ function PksApp({
           </TabsContent>
 
           <TabsContent value="supplier" className="mt-4 space-y-6">
-            <ReadOnlyWrapper readOnly={isLocked}>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">A. Internal — Kebun Inti & Plasma</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Sumber TBS yang berasal dari Kebun Inti milik perusahaan dan Plasma / KKPA / Kemitraan
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <SupplierTable section="internal" readOnly={isLocked} />
-                </CardContent>
-              </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">A. Internal — Kebun Inti & Plasma</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Sumber TBS yang berasal dari Kebun Inti milik perusahaan dan Plasma / KKPA / Kemitraan
+                </p>
+              </CardHeader>
+              <CardContent>
+                <SupplierTable section="internal" readOnly={isLocked} />
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">B. Eksternal — Pemasok Pihak Ketiga</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Perusahaan Perkebunan, Kebun Pribadi, Koperasi, Agen/Pengumpul, Gapoktan/Poktan
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <SupplierTable section="external" readOnly={isLocked} />
-                </CardContent>
-              </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">B. Eksternal — Pemasok Pihak Ketiga</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Perusahaan Perkebunan, Kebun Pribadi, Koperasi, Agen/Pengumpul, Gapoktan/Poktan
+                </p>
+              </CardHeader>
+              <CardContent>
+                <SupplierTable section="external" readOnly={isLocked} />
+              </CardContent>
+            </Card>
 
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                <strong>Catatan:</strong> Untuk pemasok &quot;Agen / Pengumpul / Ramp&quot;, mohon isi
-                detail petani pada tab &quot;Agen-Pengumpul (P2.B)&quot;. Estimasi Max TBS = 30
-                ton/ha/thn untuk Perusahaan Perkebunan, 20 ton/ha/thn untuk kategori lainnya.
-              </div>
-            </ReadOnlyWrapper>
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <strong>Catatan:</strong> Untuk pemasok &quot;Agen / Pengumpul / Ramp&quot;, mohon isi
+              detail petani pada tab &quot;Agen-Pengumpul (P2.B)&quot;. Estimasi Max TBS = 30
+              ton/ha/thn untuk Perusahaan Perkebunan, 20 ton/ha/thn untuk kategori lainnya.
+            </div>
           </TabsContent>
 
           <TabsContent value="agen" className="mt-4">
@@ -706,16 +674,11 @@ function PksApp({
           </p>
           <p>
             Data tersimpan otomatis di database lokal. Master data desa (18.510 entri) bersumber
-            dari sheet MSD SSD.
+            dari sheet MSD SSD. Setelah selesai mengisi, klik <strong>Publikasi</strong> untuk
+            mengunci laporan — laporan akan muncul di <strong>Rekap Admin</strong>.
           </p>
         </footer>
       </main>
     </div>
   )
-}
-
-// Wrapper that disables all inputs/buttons inside when readOnly
-function ReadOnlyWrapper({ readOnly, children }: { readOnly: boolean; children: React.ReactNode }) {
-  if (!readOnly) return <>{children}</>
-  return <div className="opacity-90 pointer-events-none select-none">{children}</div>
 }

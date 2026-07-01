@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSession } from '@/lib/ttp/session'
 import { exportTtpToExcel } from '@/lib/ttp/export'
 
 export async function GET(
@@ -8,11 +7,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const session = await getSession()
-  if (session.role === 'guest') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   const report = await db.ttpReport.findUnique({
     where: { id },
     include: {
@@ -25,11 +19,6 @@ export async function GET(
   })
   if (!report) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
-
-  // PKS can only export their own reports
-  if (session.role === 'pks' && report.pksAccountId !== session.pksAccountId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const buf = await exportTtpToExcel(report)

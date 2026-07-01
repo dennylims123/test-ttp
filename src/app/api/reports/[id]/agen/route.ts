@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSession } from '@/lib/ttp/session'
 
 async function getEditableReport(id: string) {
-  const session = await getSession()
-  if (session.role === 'guest') {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
   const report = await db.ttpReport.findUnique({ where: { id } })
   if (!report) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
-  if (session.role === 'pks' && report.pksAccountId !== session.pksAccountId) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  if (report.status === 'PUBLISHED') {
+    return {
+      error: NextResponse.json(
+        { error: 'Laporan sudah dipublikasi. Buka kembali via Rekap Admin.' },
+        { status: 403 }
+      ),
+    }
   }
-  if (report.status === 'PUBLISHED' && session.role !== 'admin') {
-    return { error: NextResponse.json({ error: 'Laporan sudah dipublikasi' }, { status: 403 }) }
-  }
-  return { report, session }
+  return { report }
 }
 
 export async function PUT(
