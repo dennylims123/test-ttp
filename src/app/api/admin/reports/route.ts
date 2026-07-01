@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAdminSession } from '@/lib/ttp/admin-session'
 
-// GET /api/admin/reports — list all reports with stats (open access, no admin auth)
+// GET /api/admin/reports — admin only: list all reports with stats
 export async function GET(req: NextRequest) {
+  const session = await getAdminSession()
+  if (!session.isAdmin) {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+  }
+
   const { searchParams } = new URL(req.url)
   const statusFilter = searchParams.get('status') // 'DRAFT' | 'PUBLISHED' | null
   const q = searchParams.get('q')?.toLowerCase()

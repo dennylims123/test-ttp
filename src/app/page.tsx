@@ -7,6 +7,7 @@ import { AgenForm } from '@/components/ttp/agen-form'
 import { SummaryPanel } from '@/components/ttp/summary-panel'
 import { RekapanTtp } from '@/components/ttp/rekapan-ttp'
 import { AdminRecap } from '@/components/ttp/admin-recap'
+import { AdminPinDialog } from '@/components/ttp/admin-pin-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,6 +37,8 @@ import {
   ArrowLeft,
   Eye,
   BarChart3,
+  Shield,
+  LogOut,
 } from 'lucide-react'
 
 type View = 'form' | 'admin'
@@ -60,14 +63,53 @@ export default function Home() {
   // When admin clicks "Lihat detail" on a report, we switch to form view with that report loaded
   const [adminViewingReportId, setAdminViewingReportId] = useState<string | null>(null)
 
+  // Admin session state
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null) // null = loading
+  const [showPinDialog, setShowPinDialog] = useState(false)
+
+  // Check admin session on mount
+  useEffect(() => {
+    fetch('/api/auth/admin-me')
+      .then((r) => r.json())
+      .then((s: { isAdmin: boolean }) => setIsAdmin(s.isAdmin))
+      .catch(() => setIsAdmin(false))
+  }, [])
+
   // Sync view to URL hash
   useEffect(() => {
     window.location.hash = view === 'admin' ? 'admin' : ''
   }, [view])
 
-  const openAdminRecap = () => {
-    setView('admin')
+  const refreshAdminSession = useCallback(async () => {
+    const r = await fetch('/api/auth/admin-me')
+    const s = await r.json()
+    setIsAdmin(s.isAdmin)
+    return s.isAdmin as boolean
+  }, [])
+
+  const openAdminRecap = async () => {
     setAdminViewingReportId(null)
+    // Check if already admin
+    const adminStatus = await refreshAdminSession()
+    if (adminStatus) {
+      setView('admin')
+    } else {
+      setShowPinDialog(true)
+    }
+  }
+
+  const handlePinSuccess = async () => {
+    setShowPinDialog(false)
+    await refreshAdminSession()
+    setView('admin')
+  }
+
+  const handlePinCancel = () => {
+    setShowPinDialog(false)
+    // If user was trying to access admin view but cancelled, return to form
+    if (view === 'admin') {
+      setView('form')
+    }
   }
 
   const openForm = () => {
@@ -80,17 +122,36 @@ export default function Home() {
     setView('form')
   }
 
+  const logoutAdmin = async () => {
+    await fetch('/api/auth/admin-logout', { method: 'POST' })
+    setIsAdmin(false)
+    setView('form')
+    toast.info('Keluar dari admin')
+  }
+
+  // If user lands on #admin URL but isn't admin, auto-show PIN dialog
+  const shouldShowPinForAdminRoute = view === 'admin' && isAdmin === false
+
   return (
     <>
       <Toaster position="top-right" richColors />
+      <AdminPinDialog
+        open={showPinDialog || shouldShowPinForAdminRoute}
+        onSuccess={handlePinSuccess}
+        onCancel={handlePinCancel}
+      />
       {view === 'admin' ? (
-        <AdminView onBackToForm={openForm} onOpenReport={openReportFromAdmin} />
+        <AdminView
+          onBackToForm={openForm}
+          onOpenReport={openReportFromAdmin}
+          onLogoutAdmin={logoutAdmin}
+        />
       ) : (
         <FormView
           adminViewingReportId={adminViewingReportId}
           onBackToAdmin={openAdminRecap}
           onOpenAdmin={openAdminRecap}
-          isFromAdmin={!!adminViewingReportId}
+          isFromAdmin={!!adminViewingReportId && !!isAdmin}
         />
       )}
     </>
@@ -101,9 +162,11 @@ export default function Home() {
 function AdminView({
   onBackToForm,
   onOpenReport,
+  onLogoutAdmin,
 }: {
   onBackToForm: () => void
   onOpenReport: (id: string) => void
+  onLogoutAdmin: () => void
 }) {
   return (
     <div className="min-h-screen bg-muted/20">
@@ -114,16 +177,28 @@ function AdminView({
               <BarChart3 className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-base font-semibold">Rekap Admin — Form TTP</h1>
+              <h1 className="text-base font-semibold flex items-center gap-2">
+                Rekap Admin — Form TTP
+                <Badge variant="secondary" className="text-[10px]">
+                  <Shield className="h-2.5 w-2.5 mr-0.5" />
+                  Admin
+                </Badge>
+              </h1>
               <p className="text-xs text-muted-foreground">
                 Rekap semua laporan TTP
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={onBackToForm}>
-            <ArrowLeft className="h-4 w-4 mr-1.5" />
-            Kembali ke Form
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onBackToForm}>
+              <ArrowLeft className="h-4 w-4 mr-1.5" />
+              Kembali ke Form
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onLogoutAdmin} className="text-destructive hover:text-destructive">
+              <LogOut className="h-4 w-4 mr-1.5" />
+              Keluar Admin
+            </Button>
+          </div>
         </div>
       </header>
       <main className="max-w-[1400px] mx-auto px-4 py-6">
