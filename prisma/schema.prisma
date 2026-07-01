@@ -1,0 +1,119 @@
+// TTP (Traceability to Plantation) Form Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A saved TTP form report (a PKS can have multiple reporting periods)
+model TtpReport {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // PKS info
+  pksName      String?
+  pksAddress   String?
+  pksLatitude  String?
+  pksLongitude String?
+  reportDate   String?
+  periode      String?
+  totalTbs     Float?
+  pengisi      String?
+
+  // P1M data
+  p1mProduksiTbsBersertifikat Float?
+  p1mKapasitasPks             Float?
+  p1mProduksiCpo              Float?
+  p1mFasilitasKernel          String? // Y / T
+  p1mTotalTbs                 Float?
+  p1mTbsKebunInti             Float?
+  p1mTbsPlasma                Float?
+  p1mTbsMandiri               Float?
+  p1mSistemTtp                String? // Y / T
+  p1mNilaiTtp                 Float?
+  p1mSistemDetail             String?
+
+  suppliers     SupplierTbs[]
+  agenPengumpul AgenPengumpul[]
+
+  @@map("ttp_reports")
+}
+
+/// Internal (Kebun Inti/Plasma) or External (Perusahaan/Pribadi/Agen/Koperasi/Gapoktan)
+model SupplierTbs {
+  id        String @id @default(cuid())
+  reportId  String
+  report    TtpReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  section      String  // "internal" | "external"
+  no           Int
+  namaPemasok  String?
+  jenisPemasok String? // Kebun Inti / Plasma / Perusahaan Perkebunan Pihak Ketiga / etc.
+  jumlahPetani Int?
+  sertifikasi  String? // Ya / Tidak
+  desa         String?
+  kecamatan    String?
+  kabupaten    String?
+  lintang      String?
+  bujur        String?
+  legalitas    String? // HGU/SHM/SKT/SKGR
+  luasAreal    Float?
+  petaKebun    String? // Ya / Tidak
+  volumeTbs    Float?
+
+  @@map("supplier_tbs")
+}
+
+/// Phase 2B - Agen/Pengumpul (Indirect supplier with farmer list)
+model AgenPengumpul {
+  id        String @id @default(cuid())
+  reportId  String
+  report    TtpReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  no           Int
+  namaAgen     String?
+  alamat       String?
+  lintang      String?
+  bujur        String?
+  desaSumber   String?
+  volumeTbs    Float?
+
+  farmers Farmer[]
+
+  @@map("agen_pengumpul")
+}
+
+/// Farmer under an Agen/Pengumpul
+model Farmer {
+  id        String @id @default(cuid())
+  agenId    String
+  agen      AgenPengumpul @relation(fields: [agenId], references: [id], onDelete: Cascade)
+
+  no         Int
+  nama       String?
+  lintang    String?
+  bujur      String?
+  legalitas  String?
+  desa       String?
+  kecamatan  String?
+  kabupaten  String?
+  luasKebun  Float?
+
+  @@map("farmer")
+}
+
+/// Master village data (18k+ rows from MSD SSD sheet)
+model Village {
+  id        Int    @id
+  desa      String
+  full      String
+
+  @@index([desa])
+  @@map("villages")
+}
