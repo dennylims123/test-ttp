@@ -214,6 +214,7 @@ export const useTtpStore = create<TtpState>((set, get) => ({
         luasAreal: null,
         petaKebun: 'Tidak',
         volumeTbs: null,
+        msdStatus: null,
       }
       const newSuppliers = [...st.suppliers, newRow]
       return {
@@ -322,6 +323,7 @@ export const useTtpStore = create<TtpState>((set, get) => ({
         kecamatan: '',
         kabupaten: '',
         luasKebun: null,
+        msdStatus: null,
       })
       next[agenIdx] = { ...next[agenIdx], farmers }
       return { agen: next, isDirty: true }
@@ -360,13 +362,16 @@ export const useTtpStore = create<TtpState>((set, get) => ({
   setStatus: (status, publishedAt) => set({ status, publishedAt, isDirty: false }),
 
   loadFromApi: (data) => {
+    // NOTE: The API returns snake_case column names from direct LibSQL queries
+    // (e.g., nama_pemasok, pks_name, volume_tbs). We check BOTH camelCase and
+    // snake_case to handle both formats.
     const suppliers: SupplierRow[] = (data.suppliers || []).map((s: any) => ({
       id: s.id,
       section: s.section,
       no: s.no,
-      namaPemasok: s.namaPemasok || '',
-      jenisPemasok: s.jenisPemasok || '',
-      jumlahPetani: s.jumlahPetani ?? null,
+      namaPemasok: s.namaPemasok || s.nama_pemasok || '',
+      jenisPemasok: s.jenisPemasok || s.jenis_pemasok || '',
+      jumlahPetani: s.jumlahPetani ?? s.jumlah_petani ?? null,
       sertifikasi: s.sertifikasi || '',
       desa: s.desa || '',
       kecamatan: s.kecamatan || '',
@@ -374,22 +379,23 @@ export const useTtpStore = create<TtpState>((set, get) => ({
       lintang: s.lintang || '',
       bujur: s.bujur || '',
       legalitas: s.legalitas || '',
-      luasAreal: s.luasAreal ?? null,
-      petaKebun: s.petaKebun || '',
-      volumeTbs: s.volumeTbs ?? null,
+      luasAreal: s.luasAreal ?? s.luas_areal ?? null,
+      petaKebun: s.petaKebun || s.peta_kebun || '',
+      volumeTbs: s.volumeTbs ?? s.volume_tbs ?? null,
+      msdStatus: s.msdStatus ?? s.msd_status ?? null,
     }))
 
     // Load existing agen (with farmer lists preserved), then re-sync from suppliers
-    const existingAgen: AgenPengumpulRow[] = (data.agenPengumpul || []).map((a: any) => ({
+    const existingAgen: AgenPengumpulRow[] = (data.agenPengumpul || data.agen_pengumpul || []).map((a: any) => ({
       id: a.id,
       no: a.no,
-      namaAgen: a.namaAgen || '',
+      namaAgen: a.namaAgen || a.nama_agen || '',
       alamat: a.alamat || '',
       lintang: a.lintang || '',
       bujur: a.bujur || '',
-      desaSumber: a.desaSumber || '',
-      volumeTbs: a.volumeTbs ?? null,
-      linkedSupplierNo: a.linkedSupplierNo ?? null,
+      desaSumber: a.desaSumber || a.desa_sumber || '',
+      volumeTbs: a.volumeTbs ?? a.volume_tbs ?? null,
+      linkedSupplierNo: a.linkedSupplierNo ?? a.linked_supplier_no ?? null,
       farmers: (a.farmers || []).map((f: any) => ({
         id: f.id,
         no: f.no,
@@ -400,7 +406,8 @@ export const useTtpStore = create<TtpState>((set, get) => ({
         desa: f.desa || '',
         kecamatan: f.kecamatan || '',
         kabupaten: f.kabupaten || '',
-        luasKebun: f.luasKebun ?? null,
+        luasKebun: f.luasKebun ?? f.luas_kebun ?? null,
+        msdStatus: f.msdStatus ?? f.msd_status ?? null,
       })),
     }))
 
@@ -408,29 +415,29 @@ export const useTtpStore = create<TtpState>((set, get) => ({
       reportId: data.id,
       reportName: data.name || '',
       status: (data.status as 'DRAFT' | 'PUBLISHED') || 'DRAFT',
-      publishedAt: data.publishedAt || null,
+      publishedAt: data.publishedAt || data.published_at || null,
       pks: {
-        pksName: data.pksName || '',
-        pksAddress: data.pksAddress || '',
-        pksLatitude: data.pksLatitude || '',
-        pksLongitude: data.pksLongitude || '',
-        reportDate: data.reportDate || '',
+        pksName: data.pksName || data.pks_name || '',
+        pksAddress: data.pksAddress || data.pks_address || '',
+        pksLatitude: data.pksLatitude || data.pks_latitude || '',
+        pksLongitude: data.pksLongitude || data.pks_longitude || '',
+        reportDate: data.reportDate || data.report_date || '',
         periode: data.periode || '',
-        totalTbs: data.totalTbs ?? null,
+        totalTbs: data.totalTbs ?? data.total_tbs ?? null,
         pengisi: data.pengisi || '',
       },
       p1m: {
-        produksiTbsBersertifikat: data.p1mProduksiTbsBersertifikat ?? null,
-        kapasitasPks: data.p1mKapasitasPks ?? null,
-        produksiCpo: data.p1mProduksiCpo ?? null,
-        fasilitasKernel: (data.p1mFasilitasKernel as any) || '',
-        totalTbs: data.p1mTotalTbs ?? null,
-        tbsKebunInti: data.p1mTbsKebunInti ?? null,
-        tbsPlasma: data.p1mTbsPlasma ?? null,
-        tbsMandiri: data.p1mTbsMandiri ?? null,
-        sistemTtp: (data.p1mSistemTtp as any) || '',
-        nilaiTtp: data.p1mNilaiTtp ?? null,
-        sistemDetail: data.p1mSistemDetail || '',
+        produksiTbsBersertifikat: data.p1mProduksiTbsBersertifikat ?? data.p1m_produksi_tbs_bersertifikat ?? null,
+        kapasitasPks: data.p1mKapasitasPks ?? data.p1m_kapasitas_pks ?? null,
+        produksiCpo: data.p1mProduksiCpo ?? data.p1m_produksi_cpo ?? null,
+        fasilitasKernel: (data.p1mFasilitasKernel as any) || data.p1m_fasilitas_kernel || '',
+        totalTbs: data.p1mTotalTbs ?? data.p1m_total_tbs ?? null,
+        tbsKebunInti: data.p1mTbsKebunInti ?? data.p1m_tbs_kebun_inti ?? null,
+        tbsPlasma: data.p1mTbsPlasma ?? data.p1m_tbs_plasma ?? null,
+        tbsMandiri: data.p1mTbsMandiri ?? data.p1m_tbs_mandiri ?? null,
+        sistemTtp: (data.p1mSistemTtp as any) || data.p1m_sistem_ttp || '',
+        nilaiTtp: data.p1mNilaiTtp ?? data.p1m_nilai_ttp ?? null,
+        sistemDetail: data.p1mSistemDetail || data.p1m_sistem_detail || '',
       },
       suppliers,
       agen: syncAgenFromSuppliers(suppliers, existingAgen),

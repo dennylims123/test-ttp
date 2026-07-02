@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Y_T } from '@/lib/ttp/types'
-import { Info } from 'lucide-react'
+import { Info, FileSpreadsheet } from 'lucide-react'
 
 function fmt(n: number | null | undefined, digits = 2) {
   if (n == null || !isFinite(n)) return '-'
@@ -121,23 +121,11 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             <StatBox
               label="TBS yang diproses (ton/tahun)"
               value={fmt(autoTotalTbs)}
               derived
-            />
-            <StatBox
-              label="Kapasitas PKS (Ton/jam)"
-              value={fmt(p1m.kapasitasPks)}
-              editable
-              onChange={(v) => setP1m({ kapasitasPks: v })}
-            />
-            <StatBox
-              label="Produksi CPO (Ton)"
-              value={fmt(p1m.produksiCpo)}
-              editable
-              onChange={(v) => setP1m({ produksiCpo: v })}
             />
             <StatBox
               label="TBS Kebun Inti (Ton)"
@@ -155,7 +143,7 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
               derived
             />
             <StatBox
-              label="% TTP (Bersertifikat)"
+              label="% TTP (Traceable)"
               value={`${(ttpPct * 100).toFixed(2)}%`}
               derived
               highlight={ttpPct >= 0.95}
@@ -164,8 +152,8 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
           <div className="mt-4 flex items-start gap-2 p-3 rounded-md bg-blue-50 text-blue-800 text-xs">
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
-              <strong>Catatan:</strong> TBS yang diproses harus sama dengan total TBS yang disumber
-              dari kebun inti, plasma, dan pemasok mandiri pihak ketiga.
+              <strong>Catatan:</strong> Nilai TBS di atas otomatis dihitung dari data di tab
+              &quot;2. List Supplier TBS&quot;. Tidak perlu diisi manual.
             </span>
           </div>
         </CardContent>
@@ -183,48 +171,6 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
           <fieldset disabled={readOnly} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs">Produksi TBS Bersertifikat (ton/tahun)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={p1m.produksiTbsBersertifikat ?? ''}
-                onChange={(e) =>
-                  setP1m({
-                    produksiTbsBersertifikat: e.target.value === '' ? null : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Kapasitas PKS Terpasang (Ton/jam)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={p1m.kapasitasPks ?? ''}
-                onChange={(e) =>
-                  setP1m({
-                    kapasitasPks: e.target.value === '' ? null : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Total CPO yang Diproduksi (Ton)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={p1m.produksiCpo ?? ''}
-                onChange={(e) =>
-                  setP1m({
-                    produksiCpo: e.target.value === '' ? null : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-              />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-xs">Fasilitas Pengolah Kernel / KCP (Y/T)</Label>
               <Select
                 value={p1m.fasilitasKernel}
@@ -241,62 +187,6 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Total TBS yang Diterima (Ton)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={p1m.totalTbs ?? ''}
-                onChange={(e) =>
-                  setP1m({
-                    totalTbs: e.target.value === '' ? null : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">TBS dari Kebun Inti (Ton)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={p1m.tbsKebunInti ?? ''}
-                onChange={(e) =>
-                  setP1m({
-                    tbsKebunInti: e.target.value === '' ? null : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">TBS Plasma / KKPA / Kemitraan (Ton)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={p1m.tbsPlasma ?? ''}
-                onChange={(e) =>
-                  setP1m({
-                    tbsPlasma: e.target.value === '' ? null : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">TBS Pemasok Mandiri Pihak Ketiga (Ton)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={p1m.tbsMandiri ?? ''}
-                onChange={(e) =>
-                  setP1m({
-                    tbsMandiri: e.target.value === '' ? null : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Apakah PKS Memiliki Sistem TTP? (Y/T)</Label>
@@ -331,6 +221,71 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
               />
             </div>
           </div>
+
+          {/* Auto-derived TBS data from List Supplier TBS (read-only) */}
+          <div className="rounded-md border border-permata-forest/20 bg-permata-green-light/30 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-medium text-permata-teal">
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Data Sumber TBS — Otomatis dari tab &quot;2. List Supplier TBS&quot;
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Total TBS Diterima (Ton)</Label>
+                <div className="text-sm font-semibold tabular-nums text-permata-teal">
+                  {s.totalVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">TBS Kebun Inti (Ton)</Label>
+                <div className="text-sm font-semibold tabular-nums">
+                  {s.internal.kebunInti.volume.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">TBS Plasma / KKPA / Kemitraan (Ton)</Label>
+                <div className="text-sm font-semibold tabular-nums">
+                  {s.internal.plasma.volume.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">TBS Pemasok Mandiri Pihak Ketiga (Ton)</Label>
+                <div className="text-sm font-semibold tabular-nums">
+                  {s.externalVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-permata-forest/10">
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">% TTP (Traceable)</Label>
+                <div className="text-sm font-semibold tabular-nums text-permata-accent">
+                  {(ttpPct * 100).toFixed(2)}%
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Pasokan Internal</Label>
+                <div className="text-sm font-semibold tabular-nums">
+                  {s.internalVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Ton
+                  {' '}
+                  ({(s.internalPct * 100).toFixed(1)}%)
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Pasokan Eksternal</Label>
+                <div className="text-sm font-semibold tabular-nums">
+                  {s.externalVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Ton
+                  {' '}
+                  ({(s.externalPct * 100).toFixed(1)}%)
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Total Pemasok</Label>
+                <div className="text-sm font-semibold tabular-nums">
+                  {s.internal.total.count + s.external.total.count} pemasok
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label className="text-xs">
               Detail Sistem Kemamputelusuran (SOP, Perhitungan, Dokumen Pendukung)
@@ -367,7 +322,7 @@ function StatBox({
   return (
     <div
       className={`rounded-md border p-3 space-y-1 ${
-        highlight ? 'bg-emerald-50 border-emerald-200' : derived ? 'bg-muted/30' : ''
+        highlight ? 'bg-permata-green-light border-permata-accent/30' : derived ? 'bg-muted/30' : ''
       }`}
     >
       <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>

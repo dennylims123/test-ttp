@@ -13,7 +13,7 @@ import { createClient, type Client } from '@libsql/client'
 
 let _client: Client | null = null
 
-function getClient(): Client {
+export function getClient(): Client {
   if (_client) return _client
 
   const url = process.env.DATABASE_URL
@@ -120,6 +120,7 @@ export interface Village {
   id: number
   desa: string
   full: string
+  msd_status?: string  // 'MSD' | 'Non-MSD' | '#N/A'
 }
 
 // ============= HELPER =============
@@ -139,7 +140,7 @@ function rowsToObjects(rows: Record<string, any>[]): any[] {
 export async function searchVillages(q: string, limit: number = 30): Promise<Village[]> {
   const client = getClient()
   const result = await client.execute({
-    sql: 'SELECT id, desa, full FROM villages WHERE desa LIKE ? OR full LIKE ? ORDER BY desa ASC LIMIT ?',
+    sql: 'SELECT id, desa, full, msd_status FROM villages WHERE desa LIKE ? OR full LIKE ? ORDER BY desa ASC LIMIT ?',
     args: [`%${q}%`, `%${q}%`, limit],
   })
   return rowsToObjects(result.rows) as Village[]
@@ -186,7 +187,11 @@ export async function getReportWithRelations(id: string): Promise<any | null> {
   if (!report) return null
 
   const suppliers = await client.execute({
-    sql: 'SELECT * FROM supplier_tbs WHERE report_id = ? ORDER BY section ASC, no ASC',
+    sql: `SELECT s.*, v.msd_status as msdStatus
+          FROM supplier_tbs s
+          LEFT JOIN villages v ON LOWER(s.desa) = LOWER(v.desa)
+          WHERE s.report_id = ?
+          ORDER BY s.section ASC, s.no ASC`,
     args: [id],
   })
   const agen = await client.execute({
@@ -197,7 +202,7 @@ export async function getReportWithRelations(id: string): Promise<any | null> {
   const agenWithFarmers = await Promise.all(
     agen.rows.map(async (a) => {
       const farmers = await client.execute({
-        sql: 'SELECT * FROM farmer WHERE agen_id = ? ORDER BY no ASC',
+        sql: 'SELECT f.*, v.msd_status as msdStatus FROM farmer f LEFT JOIN villages v ON LOWER(f.desa) = LOWER(v.desa) WHERE f.agen_id = ? ORDER BY f.no ASC',
         args: [(a as any).id],
       })
       return { ...rowToObj(a), farmers: rowsToObjects(farmers.rows) }
@@ -293,7 +298,11 @@ export async function unpublishReport(id: string): Promise<void> {
 export async function getSuppliers(reportId: string): Promise<SupplierTbs[]> {
   const client = getClient()
   const result = await client.execute({
-    sql: 'SELECT * FROM supplier_tbs WHERE report_id = ? ORDER BY section ASC, no ASC',
+    sql: `SELECT s.*, v.msd_status as msdStatus
+          FROM supplier_tbs s
+          LEFT JOIN villages v ON LOWER(s.desa) = LOWER(v.desa)
+          WHERE s.report_id = ?
+          ORDER BY s.section ASC, s.no ASC`,
     args: [reportId],
   })
   return rowsToObjects(result.rows) as SupplierTbs[]
@@ -302,7 +311,17 @@ export async function getSuppliers(reportId: string): Promise<SupplierTbs[]> {
 export async function setSuppliers(reportId: string, suppliers: any[]): Promise<SupplierTbs[]> {
   const client = getClient()
   await client.execute({ sql: 'DELETE FROM supplier_tbs WHERE report_id = ?', args: [reportId] })
-  for (const [idx, s] of suppliers.entries()) {
+
+  // Deduplicate by (section + no) to prevent duplicates from race conditions
+  const seen = new Set<string>()
+  const deduped = suppliers.filter((s) => {
+    const key = `${s.section}-${s.no}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  for (const [idx, s] of deduped.entries()) {
     const id = generateCuid()
     await client.execute({
       sql: `INSERT INTO supplier_tbs (
@@ -332,7 +351,7 @@ export async function getAgenWithFarmers(reportId: string): Promise<any[]> {
   return Promise.all(
     agen.rows.map(async (a) => {
       const farmers = await client.execute({
-        sql: 'SELECT * FROM farmer WHERE agen_id = ? ORDER BY no ASC',
+        sql: 'SELECT f.*, v.msd_status as msdStatus FROM farmer f LEFT JOIN villages v ON LOWER(f.desa) = LOWER(v.desa) WHERE f.agen_id = ? ORDER BY f.no ASC',
         args: [(a as any).id],
       })
       return { ...rowToObj(a), farmers: rowsToObjects(farmers.rows) }
@@ -423,13 +442,14 @@ export async function getAdminReportsWithStats(filter?: {
       args: [obj.id],
     })
     let totalVolume = 0
-    let certifiedVolume = 0
+    let traceableVolume = 0
     let internalVolume = 0
     let externalVolume = 0
     for (const s of suppliers.rows) {
       const vol = (s as any).volume_tbs || 0
       totalVolume += vol
-      if ((s as any).sertifikasi === 'Ya') certifiedVolume += vol
+      // All registered suppliers with volume > 0 are traceable
+      if (vol > 0) traceableVolume += vol
       if ((s as any).section === 'internal') internalVolume += vol
       else externalVolume += vol
     }
@@ -440,7 +460,7 @@ export async function getAdminReportsWithStats(filter?: {
         totalVolume,
         internalVolume,
         externalVolume,
-        ttpPct: totalVolume > 0 ? certifiedVolume / totalVolume : 0,
+        ttpPct: totalVolume > 0 ? traceableVolume / totalVolume : 0,
         supplierCount: obj.supplier_count,
         agenCount: obj.agen_count,
       },

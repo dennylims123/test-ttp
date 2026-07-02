@@ -13,6 +13,8 @@ export interface ParsedFarmer {
   kabupaten: string
   luasKebun: number | null
   _warnings: string[]
+  _villageMatched?: boolean  // set after validation against MSD SSD
+  _msdStatus?: string  // 'MSD' | 'Non-MSD' | '#N/A' — set after validation
 }
 
 export interface ParseResult {
@@ -230,6 +232,7 @@ export function toFarmerRows(parsed: ParsedFarmer[]): FarmerRow[] {
     kecamatan: p.kecamatan,
     kabupaten: p.kabupaten,
     luasKebun: p.luasKebun,
+    msdStatus: p._msdStatus || null,
   }))
 }
 
@@ -257,4 +260,113 @@ export function downloadString(filename: string, content: string, mimeType = 'te
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// ============= VILLAGE VALIDATION (MSD SSD) =============
+
+export interface VillageValidationResult {
+  found: boolean
+  desa?: string
+  kecamatan?: string
+  kabupaten?: string
+  provinsi?: string
+  full?: string
+  matchCount?: number
+  msdStatus?: string  // 'MSD' | 'Non-MSD' | '#N/A'
+  alternatives?: string[]
+}
+
+export interface ValidationResult {
+  results: Record<string, VillageValidationResult>
+}
+
+/**
+ * Validate a list of village names against the MSD SSD master database.
+ * Returns a map of { originalName: { found, desa, kecamatan, kabupaten, ... } }.
+ */
+export async function validateVillages(
+  names: string[]
+): Promise<Record<string, VillageValidationResult>> {
+  const uniqueNames = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
+  if (uniqueNames.length === 0) return {}
+
+  try {
+    const r = await fetch('/api/villages/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names: uniqueNames }),
+    })
+    if (!r.ok) throw new Error('Validation failed')
+    const data: ValidationResult = await r.json()
+    return data.results
+  } catch (e) {
+    // Silent fail — return empty results (no validation, just import as-is)
+    return {}
+  }
+}
+
+/**
+ * Enrich parsed farmers with validated village data.
+ * For each farmer, if their desa is found in the MSD SSD database,
+ * auto-fill kecamatan and kabupaten from the database (overwriting empty fields).
+ *
+ * Returns the enriched farmers + a summary of validation results.
+ */
+export function enrichFarmersWithVillages(
+  farmers: ParsedFarmer[],
+  validation: Record<string, VillageValidationResult>
+): {
+  farmers: ParsedFarmer[]
+  summary: {
+    total: number
+    matched: number
+    notFound: number
+    autoFilled: number
+    unmatchedNames: string[]
+  }
+} {
+  let matched = 0
+  let notFound = 0
+  let autoFilled = 0
+  const unmatchedNames = new Set<string>()
+
+  const enriched = farmers.map((f) => {
+    const desaName = f.desa.trim()
+    if (!desaName) return f
+
+    const result = validation[desaName]
+    if (result && result.found) {
+      matched++
+      const patch: Partial<ParsedFarmer> = {}
+      // Auto-fill kecamatan/kabupaten if empty or if the validated data is more specific
+      if (!f.kecamatan && result.kecamatan) {
+        patch.kecamatan = result.kecamatan
+        autoFilled++
+      }
+      if (!f.kabupaten && result.kabupaten) {
+        patch.kabupaten = result.kabupaten
+        autoFilled++
+      }
+      // Normalize the desa name to match the database
+      if (result.desa && result.desa !== desaName) {
+        patch.desa = result.desa
+      }
+      return { ...f, ...patch, _villageMatched: true, _msdStatus: result.msdStatus || '#N/A' }
+    } else {
+      notFound++
+      unmatchedNames.add(desaName)
+      return { ...f, _villageMatched: false }
+    }
+  })
+
+  return {
+    farmers: enriched,
+    summary: {
+      total: farmers.length,
+      matched,
+      notFound,
+      autoFilled,
+      unmatchedNames: [...unmatchedNames],
+    },
+  }
 }

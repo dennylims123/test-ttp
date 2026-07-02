@@ -385,7 +385,7 @@ function AgenCard({
                         size="sm"
                         variant="default"
                         onClick={() => setShowImport(true)}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-permata-accent hover:bg-permata-accent/90"
                       >
                         <Upload className="h-3.5 w-3.5 mr-1" />
                         Import Massal
@@ -438,13 +438,14 @@ function AgenCard({
                         <th className="px-2 py-1.5 text-left font-medium w-24">Luas (Ha)</th>
                         <th className="px-2 py-1.5 text-left font-medium w-20">% Luas</th>
                         <th className="px-2 py-1.5 text-left font-medium w-20">Est. Volume</th>
+                        <th className="px-2 py-1.5 text-left font-medium w-24">Status</th>
                         <th className="px-2 py-1.5 w-10"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.farmers.length === 0 ? (
                         <tr>
-                          <td colSpan={12} className="text-center text-muted-foreground py-6">
+                          <td colSpan={13} className="text-center text-muted-foreground py-6">
                             Belum ada data petani.
                           </td>
                         </tr>
@@ -517,9 +518,10 @@ function AgenCard({
                                         desa: val,
                                         kecamatan: parts[1] || f.kecamatan,
                                         kabupaten: parts[2] || f.kabupaten,
+                                        msdStatus: (v as any).msd_status || null,
                                       })
                                     } else {
-                                      updateFarmer(agenIdx, fIdx, { desa: val })
+                                      updateFarmer(agenIdx, fIdx, { desa: val, msdStatus: null })
                                     }
                                   }}
                                   placeholder="Desa"
@@ -567,6 +569,21 @@ function AgenCard({
                                   ? estVol.toLocaleString('id-ID', { maximumFractionDigits: 2 })
                                   : '-'}
                               </td>
+                              <td className="px-2 py-1">
+                                {f.msdStatus ? (
+                                  <span className={
+                                    f.msdStatus === 'MSD'
+                                      ? 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-permata-accent/15 text-permata-forest'
+                                      : f.msdStatus === 'Non-MSD'
+                                      ? 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700'
+                                      : 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500'
+                                  }>
+                                    {f.msdStatus}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground">—</span>
+                                )}
+                              </td>
                               <td className="px-1 py-1">
                                 {!readOnly ? (
                                   <Button
@@ -587,7 +604,7 @@ function AgenCard({
                     {data.farmers.length > 0 && (
                       <tfoot>
                         <tr className="border-t-2 bg-muted/40 font-medium">
-                          <td colSpan={8} className="px-2 py-1.5 text-right">
+                          <td colSpan={9} className="px-2 py-1.5 text-right">
                             Total Luasan:
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums">

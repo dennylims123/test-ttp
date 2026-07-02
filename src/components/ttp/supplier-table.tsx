@@ -37,15 +37,16 @@ export function SupplierTable({ section, readOnly = false }: Props) {
     if (idx >= 0) updateSupplier(idx, patch)
   }
 
-  const handleVillageSelect = (no: number, villageDesa: string, full?: string) => {
+  const handleVillageSelect = (no: number, villageDesa: string, full?: string, msdStatus?: string) => {
     if (full) {
       const parts = full.split(',').map((p) => p.trim())
-      const patch: Partial<SupplierRow> = { desa: villageDesa }
+      const patch: Partial<SupplierRow> = { desa: villageDesa, msdStatus: msdStatus || null }
       if (parts.length >= 2) patch.kecamatan = parts[1]
       if (parts.length >= 3) patch.kabupaten = parts[2]
       updateRow(no, patch)
     } else {
-      updateRow(no, { desa: villageDesa })
+      // Manual input (village not from autocomplete) — clear MSD status
+      updateRow(no, { desa: villageDesa, msdStatus: null })
     }
   }
 
@@ -70,6 +71,7 @@ export function SupplierTable({ section, readOnly = false }: Props) {
               <th className="px-2 py-2 text-left font-medium w-24">Peta Kebun</th>
               <th className="px-2 py-2 text-left font-medium w-28">Volume TBS (ton)</th>
               <th className="px-2 py-2 text-left font-medium w-20">Est. Max TBS</th>
+              <th className="px-2 py-2 text-left font-medium w-24">Status</th>
               {section === 'external' && <th className="px-2 py-2 text-left font-medium w-28">Petani</th>}
               <th className="px-2 py-2 text-left font-medium w-10"></th>
             </tr>
@@ -77,7 +79,7 @@ export function SupplierTable({ section, readOnly = false }: Props) {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={section === 'external' ? 17 : 16} className="text-center text-muted-foreground py-8">
+                <td colSpan={section === 'external' ? 18 : 17} className="text-center text-muted-foreground py-8">
                   Belum ada data pemasok. Klik &quot;Tambah Baru&quot; untuk menambahkan.
                 </td>
               </tr>
@@ -150,7 +152,9 @@ export function SupplierTable({ section, readOnly = false }: Props) {
                       <VillageAutocomplete
                         value={row.desa}
                         onChange={(val, v) =>
-                          v ? handleVillageSelect(row.no, val, v.full) : updateRow(row.no, { desa: val })
+                          v
+                            ? handleVillageSelect(row.no, val, v.full, (v as any).msd_status)
+                            : handleVillageSelect(row.no, val)
                         }
                         placeholder="Desa"
                         className="h-8 text-xs min-w-[120px]"
@@ -261,6 +265,21 @@ export function SupplierTable({ section, readOnly = false }: Props) {
                     <td className="px-2 py-1 text-xs text-muted-foreground tabular-nums">
                       {estMax > 0 ? estMax.toLocaleString('id-ID') : '-'}
                     </td>
+                    <td className="px-2 py-1">
+                      {row.msdStatus ? (
+                        <span className={
+                          row.msdStatus === 'MSD'
+                            ? 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-permata-accent/15 text-permata-forest'
+                            : row.msdStatus === 'Non-MSD'
+                            ? 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700'
+                            : 'text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500'
+                        }>
+                          {row.msdStatus}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </td>
                     {section === 'external' && (
                       <td className="px-1 py-1">
                         {isAgen ? (
@@ -305,7 +324,7 @@ export function SupplierTable({ section, readOnly = false }: Props) {
           {rows.length > 0 && (
             <tfoot>
               <tr className="border-t-2 bg-muted/40 font-medium">
-                <td colSpan={section === 'external' ? 13 : 12} className="px-2 py-2 text-right">
+                <td colSpan={section === 'external' ? 14 : 13} className="px-2 py-2 text-right">
                   Sub-Total Volume TBS ({section === 'internal' ? 'Internal' : 'Eksternal'}):
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums">

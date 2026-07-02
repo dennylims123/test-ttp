@@ -89,41 +89,43 @@ export async function exportTtpToExcel(report: RawReport): Promise<Buffer> {
   suppSheet.addRow(['Periode Pelaporan :', report.periode || ''])
   suppSheet.addRow([])
   suppSheet.addRow(['A. Internal - Sumber TBS yang berasal dari Kebun Inti dan Plasma'])
-  suppSheet.addRow(['No', 'Nama Pemasok', 'Jenis Pemasok', 'Jumlah Pemasok (Petani)', 'Sertifikasi RSPO/ISPO', 'Desa', 'Kecamatan', 'Kabupaten', 'Lintang', 'Bujur', 'Status Legalitas', 'Luasan Areal (ha)', 'Peta Kebun', 'Volume TBS (ton)', '% Volume'])
+  suppSheet.addRow(['No', 'Nama Pemasok', 'Jenis Pemasok', 'Jumlah Pemasok (Petani)', 'Sertifikasi RSPO/ISPO', 'Desa', 'Kecamatan', 'Kabupaten', 'Lintang', 'Bujur', 'Status Legalitas', 'Luasan Areal (ha)', 'Peta Kebun', 'Volume TBS (ton)', '% Volume', 'Status MSD/SSD'])
 
-  const internal = report.suppliers.filter((s) => s.section === 'internal')
-  const external = report.suppliers.filter((s) => s.section === 'external')
-  const totalVolume = report.suppliers.reduce((acc, s) => acc + (s.volume_tbs || 0), 0) || 0
-  const internalVolume = internal.reduce((acc, s) => acc + (s.volume_tbs || 0), 0)
-  const externalVolume = external.reduce((acc, s) => acc + (s.volume_tbs || 0), 0)
+  const internal = report.suppliers.filter((s: any) => s.section === 'internal')
+  const external = report.suppliers.filter((s: any) => s.section === 'external')
+  const totalVolume = report.suppliers.reduce((acc: number, s: any) => acc + (s.volume_tbs || 0), 0) || 0
+  const internalVolume = internal.reduce((acc: number, s: any) => acc + (s.volume_tbs || 0), 0)
+  const externalVolume = external.reduce((acc: number, s: any) => acc + (s.volume_tbs || 0), 0)
 
-  internal.forEach((s, i) => {
+  internal.forEach((s: any, i: number) => {
     suppSheet.addRow([
       i + 1, s.nama_pemasok || '', s.jenis_pemasok || '', s.jumlah_petani ?? '',
       s.sertifikasi || '', s.desa || '', s.kecamatan || '', s.kabupaten || '',
       s.lintang || '', s.bujur || '', s.legalitas || '', s.luas_areal ?? '',
       s.peta_kebun || '', s.volume_tbs ?? '',
       totalVolume > 0 && s.volume_tbs ? s.volume_tbs / totalVolume : 0,
+      s.msdStatus || s.msd_status || (s.desa ? '#N/A' : ''),
     ])
   })
 
-  suppSheet.addRow(['Sub-Total Penerimaan TBS dari Kebun Inti dan Plasma', '', '', '', '', '', '', '', '', '', '', '', '', internalVolume, totalVolume > 0 ? internalVolume / totalVolume : 0])
+  suppSheet.addRow(['Sub-Total Penerimaan TBS dari Kebun Inti dan Plasma', '', '', '', '', '', '', '', '', '', '', '', '', internalVolume, totalVolume > 0 ? internalVolume / totalVolume : 0, ''])
   suppSheet.addRow([])
   suppSheet.addRow(['B. Eksternal'])
-  suppSheet.addRow(['No', 'Nama Pemasok', 'Jenis Pemasok', 'Jumlah Pemasok (Petani)', 'Sertifikasi RSPO/ISPO', 'Desa', 'Kecamatan', 'Kabupaten', 'Lintang', 'Bujur', 'Status Legalitas', 'Luasan Areal (ha)', 'Peta Kebun', 'Volume TBS (ton)', '% Volume'])
+  suppSheet.addRow(['No', 'Nama Pemasok', 'Jenis Pemasok', 'Jumlah Pemasok (Petani)', 'Sertifikasi RSPO/ISPO', 'Desa', 'Kecamatan', 'Kabupaten', 'Lintang', 'Bujur', 'Status Legalitas', 'Luasan Areal (ha)', 'Peta Kebun', 'Volume TBS (ton)', '% Volume', 'Status MSD/SSD'])
 
-  external.forEach((s, i) => {
+  external.forEach((s: any, i: number) => {
     suppSheet.addRow([
       i + 1, s.nama_pemasok || '', s.jenis_pemasok || '', s.jumlah_petani ?? '',
       s.sertifikasi || '', s.desa || '', s.kecamatan || '', s.kabupaten || '',
       s.lintang || '', s.bujur || '', s.legalitas || '', s.luas_areal ?? '',
       s.peta_kebun || '', s.volume_tbs ?? '',
       totalVolume > 0 && s.volume_tbs ? s.volume_tbs / totalVolume : 0,
+      s.msdStatus || s.msd_status || (s.desa ? '#N/A' : ''),
     ])
   })
 
-  suppSheet.addRow(['Sub-Total Penerimaan TBS dari Agen/Pengumpul/Dealer/Etc', '', '', '', '', '', '', '', '', '', '', '', '', externalVolume, totalVolume > 0 ? externalVolume / totalVolume : 0])
-  suppSheet.addRow(['Total pembelian TBS yang diproses PKS =', '', '', '', '', '', '', '', '', '', '', '', '', totalVolume, 1])
+  suppSheet.addRow(['Sub-Total Penerimaan TBS dari Agen/Pengumpul/Dealer/Etc', '', '', '', '', '', '', '', '', '', '', '', '', externalVolume, totalVolume > 0 ? externalVolume / totalVolume : 0, ''])
+  suppSheet.addRow(['Total pembelian TBS yang diproses PKS =', '', '', '', '', '', '', '', '', '', '', '', '', totalVolume, 1, ''])
 
   suppSheet.getRow(7).font = { bold: true }
   suppSheet.getRow(8).font = { bold: true }
@@ -142,17 +144,18 @@ export async function exportTtpToExcel(report: RawReport): Promise<Buffer> {
     agenSheet.addRow(['Desa Sumber TBS', a.desa_sumber || ''])
     agenSheet.addRow(['Volume TBS yang dipasok ke PKS (ton)', a.volume_tbs ?? ''])
     agenSheet.addRow([])
-    agenSheet.addRow(['No', 'Nama Petani', 'Lintang', 'Bujur', 'Legalitas', 'Desa', 'Kecamatan', 'Kabupaten', 'Luas Kebun (Ha)', '% Luas', 'Est. Volume (ton)'])
-    const totalLuas = a.farmers.reduce((acc, f) => acc + (f.luas_kebun || 0), 0)
-    a.farmers.forEach((f, i) => {
+    agenSheet.addRow(['No', 'Nama Petani', 'Lintang', 'Bujur', 'Legalitas', 'Desa', 'Kecamatan', 'Kabupaten', 'Luas Kebun (Ha)', '% Luas', 'Est. Volume (ton)', 'Status MSD/SSD'])
+    const totalLuas = a.farmers.reduce((acc: number, f: any) => acc + (f.luas_kebun || 0), 0)
+    a.farmers.forEach((f: any, i: number) => {
       const pctLuas = totalLuas > 0 && f.luas_kebun ? f.luas_kebun / totalLuas : 0
       agenSheet.addRow([
         i + 1, f.nama || '', f.lintang || '', f.bujur || '', f.legalitas || '',
         f.desa || '', f.kecamatan || '', f.kabupaten || '', f.luas_kebun ?? '',
         pctLuas, pctLuas * (a.volume_tbs || 0),
+        f.msdStatus || f.msd_status || (f.desa ? '#N/A' : ''),
       ])
     })
-    agenSheet.addRow(['', '', '', '', '', '', '', 'Total', totalLuas, 1, a.volume_tbs ?? 0])
+    agenSheet.addRow(['', '', '', '', '', '', '', 'Total', totalLuas, 1, a.volume_tbs ?? 0, ''])
     agenSheet.addRow([])
   })
 

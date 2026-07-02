@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getReport, setAgen } from '@/lib/db'
+import { getAdminSession } from '@/lib/ttp/admin-session'
 
 export async function PUT(
   req: NextRequest,
@@ -9,11 +10,15 @@ export async function PUT(
   const report = await getReport(id)
   if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Published reports can only be edited by admin
   if (report.status === 'PUBLISHED') {
-    return NextResponse.json(
-      { error: 'Laporan sudah dipublikasi. Buka kembali via Rekap Admin.' },
-      { status: 403 }
-    )
+    const session = await getAdminSession()
+    if (!session.isAdmin) {
+      return NextResponse.json(
+        { error: 'Laporan sudah dipublikasi. Hanya admin yang dapat mengedit.' },
+        { status: 403 }
+      )
+    }
   }
 
   const body = await req.json()

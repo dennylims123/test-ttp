@@ -5,7 +5,8 @@ import { computeSummary, computeTtpPercent, type SupplierRow } from '@/lib/ttp/t
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { TrendingUp, Layers, Trees, Users, Factory } from 'lucide-react'
+import { TrendingUp, Layers, Trees, Users, Factory, Target, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { estimateMaxTbs } from '@/lib/ttp/types'
 
 function fmt(n: number, digits = 2) {
   if (!isFinite(n)) return '0'
@@ -17,7 +18,7 @@ function pctStr(n: number, digits = 2) {
   return `${(n * 100).toFixed(digits)}%`
 }
 
-export function SummaryPanel() {
+export function SummaryPanel({ isAdmin = false }: { isAdmin?: boolean }) {
   const { suppliers, pks } = useTtpStore()
   const s = computeSummary(suppliers)
   const ttpPct = computeTtpPercent(suppliers)
@@ -27,15 +28,15 @@ export function SummaryPanel() {
       label: 'Total Volume TBS',
       value: `${fmt(s.totalVolume)} ton`,
       icon: Factory,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
+      color: 'text-permata-accent',
+      bg: 'bg-permata-green-light',
     },
     {
       label: 'Pasokan Internal',
       value: `${fmt(s.internalVolume)} ton (${pctStr(s.internalPct)})`,
       icon: Trees,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
+      color: 'text-permata-forest',
+      bg: 'bg-permata-green-light',
     },
     {
       label: 'Pasokan Eksternal',
@@ -45,11 +46,11 @@ export function SummaryPanel() {
       bg: 'bg-amber-50',
     },
     {
-      label: '% TTP (Bersertifikat)',
+      label: '% TTP (Traceable)',
       value: pctStr(ttpPct),
       icon: TrendingUp,
-      color: ttpPct >= 0.95 ? 'text-emerald-600' : ttpPct >= 0.5 ? 'text-amber-600' : 'text-rose-600',
-      bg: ttpPct >= 0.95 ? 'bg-emerald-50' : ttpPct >= 0.5 ? 'bg-amber-50' : 'bg-rose-50',
+      color: ttpPct >= 0.95 ? 'text-permata-accent' : ttpPct >= 0.5 ? 'text-amber-600' : 'text-rose-600',
+      bg: ttpPct >= 0.95 ? 'bg-permata-green-light' : ttpPct >= 0.5 ? 'bg-amber-50' : 'bg-rose-50',
     },
   ]
 
@@ -82,7 +83,7 @@ export function SummaryPanel() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Trees className="h-4 w-4 text-green-600" />
+              <Trees className="h-4 w-4 text-permata-forest" />
               Pasokan Internal
             </CardTitle>
             <CardDescription>
@@ -210,6 +211,143 @@ export function SummaryPanel() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* % Volume Traceable + Plausibility Cross-Check — ADMIN ONLY */}
+      {isAdmin && (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Target className="h-4 w-4 text-permata-accent" />
+            % Volume TBS Traceable & Plausibility Check
+          </CardTitle>
+          <CardDescription>
+            Estimasi potensi produksi (Luas × Taksasi) vs Volume aktual — cross-check kewajaran
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Formula explanation */}
+          <div className="rounded-md border border-permata-forest/20 bg-permata-green-light/30 p-3 text-xs space-y-1">
+            <div className="font-medium text-permata-teal mb-1">Rumus:</div>
+            <div>• <strong>Estimasi Produksi</strong> = Luas Areal (Ha) × Taksasi (30 Ton/Ha/Thn untuk Internal & Perusahaan, 20 Ton/Ha/Thn untuk lainnya)</div>
+            <div>• <strong>% Volume Traceable</strong> = Volume TBS Traceable ÷ Total Volume TBS Diterima × 100%</div>
+            <div>• <strong>Cross-check</strong>: Jika rasio Aktual/Estimasi &gt; 110%, ada indikasi TBS dari luar area terdaftar</div>
+          </div>
+
+          {/* Overall % Traceable */}
+          {(() => {
+            const totalEstimasi = suppliers.reduce((acc, s) => acc + estimateMaxTbs(s), 0)
+            const totalVolume = s.totalVolume
+            const traceableVolume = totalVolume // Semua volume dianggap traceable (sudah didaftarkan di form)
+            const pctTraceable = totalVolume > 0 ? (traceableVolume / totalVolume) * 100 : 0
+            const ratioEstimasi = totalEstimasi > 0 ? (totalVolume / totalEstimasi) * 100 : 0
+
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-md border p-3 text-center">
+                  <div className="text-[11px] text-muted-foreground">Total Estimasi Produksi</div>
+                  <div className="text-base font-semibold tabular-nums text-permata-teal">{fmt(totalEstimasi)} ton</div>
+                </div>
+                <div className="rounded-md border p-3 text-center">
+                  <div className="text-[11px] text-muted-foreground">Total Volume Aktual</div>
+                  <div className="text-base font-semibold tabular-nums">{fmt(totalVolume)} ton</div>
+                </div>
+                <div className="rounded-md border p-3 text-center">
+                  <div className="text-[11px] text-muted-foreground">% Volume Traceable</div>
+                  <div className={`text-base font-semibold tabular-nums ${pctTraceable >= 95 ? 'text-permata-accent' : 'text-amber-600'}`}>
+                    {pctTraceable.toFixed(2)}%
+                  </div>
+                </div>
+                <div className={`rounded-md border p-3 text-center ${ratioEstimasi > 110 ? 'border-amber-300 bg-amber-50' : 'border-permata-accent/30 bg-permata-green-light/50'}`}>
+                  <div className="text-[11px] text-muted-foreground">Rasio Aktual / Estimasi</div>
+                  <div className={`text-base font-semibold tabular-nums ${ratioEstimasi > 110 ? 'text-amber-600' : 'text-permata-forest'}`}>
+                    {ratioEstimasi.toFixed(1)}%
+                    {ratioEstimasi > 110 && <AlertTriangle className="inline h-3.5 w-3.5 ml-1 text-amber-600" />}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Per-supplier plausibility table */}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Pemasok</TableHead>
+                <TableHead>Jenis</TableHead>
+                <TableHead className="text-right">Luas (Ha)</TableHead>
+                <TableHead className="text-right">Taksasi</TableHead>
+                <TableHead className="text-right">Estimasi (Ton)</TableHead>
+                <TableHead className="text-right">Aktual (Ton)</TableHead>
+                <TableHead className="text-right">Rasio</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {suppliers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-4">
+                    Belum ada data pemasok.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                suppliers.map((s, i) => {
+                  const estimasi = estimateMaxTbs(s)
+                  const aktual = s.volumeTbs || 0
+                  const rasio = estimasi > 0 ? (aktual / estimasi) * 100 : 0
+                  const taksasi = s.section === 'internal' || s.jenisPemasok === 'Perusahaan Perkebunan Pihak Ketiga' ? 30 : 20
+                  const isPlausible = rasio <= 110
+                  return (
+                    <TableRow key={i} className={!isPlausible && aktual > 0 ? 'bg-amber-50' : ''}>
+                      <TableCell className="text-xs font-medium">{s.namaPemasok || '—'}</TableCell>
+                      <TableCell className="text-xs">{s.jenisPemasok || '—'}</TableCell>
+                      <TableCell className="text-xs text-right tabular-nums">{s.luasAreal ? fmt(s.luasAreal, 1) : '—'}</TableCell>
+                      <TableCell className="text-xs text-right tabular-nums">{taksasi}</TableCell>
+                      <TableCell className="text-xs text-right tabular-nums">{estimasi > 0 ? fmt(estimasi) : '—'}</TableCell>
+                      <TableCell className="text-xs text-right tabular-nums">{aktual > 0 ? fmt(aktual) : '—'}</TableCell>
+                      <TableCell className={`text-xs text-right tabular-nums font-medium ${!isPlausible && aktual > 0 ? 'text-amber-600' : 'text-permata-forest'}`}>
+                        {estimasi > 0 ? `${rasio.toFixed(1)}%` : '—'}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {aktual === 0 ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : isPlausible ? (
+                          <span className="flex items-center gap-1 text-permata-forest">
+                            <CheckCircle2 className="h-3 w-3" /> Wajar
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-amber-600">
+                            <AlertTriangle className="h-3 w-3" /> Indikasi TBS luar
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+
+          {suppliers.length > 0 && (() => {
+            const flagged = suppliers.filter((s) => {
+              const estimasi = estimateMaxTbs(s)
+              const aktual = s.volumeTbs || 0
+              return estimasi > 0 && aktual > 0 && (aktual / estimasi) * 100 > 110
+            })
+            if (flagged.length === 0) return null
+            return (
+              <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>
+                  <strong>{flagged.length} pemasok</strong> memiliki rasio Aktual/Estimasi &gt; 110%.
+                  Ini mengindikasikan volume TBS yang dilaporkan melebihi estimasi potensi produksi dari luas area terdaftar —
+                  kemungkinan ada TBS dari luar area (non-traceable) yang masuk mengatasnamakan sumber tersebut.
+                </span>
+              </div>
+            )
+          })()}
+        </CardContent>
+      </Card>
+      )}
     </div>
   )
 }

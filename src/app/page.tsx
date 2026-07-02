@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTtpStore } from '@/lib/ttp/store'
 import { SupplierTable } from '@/components/ttp/supplier-table'
 import { AgenForm } from '@/components/ttp/agen-form'
@@ -21,13 +21,16 @@ import {
   Download,
   Loader2,
   AlertCircle,
+  CheckCircle2,
   Lock,
+  Save,
   Send,
   ArrowLeft,
   Eye,
   BarChart3,
   Shield,
   LogOut,
+  Copy,
 } from 'lucide-react'
 
 type View = 'form' | 'admin'
@@ -157,32 +160,34 @@ function AdminView({
   onLogoutAdmin: () => void
 }) {
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="sticky top-0 z-30 bg-background border-b">
+    <div className="min-h-screen bg-permata-green-light/30">
+      {/* Permata Group top gradient bar */}
+      <div className="h-1 bg-permata-accent-line" />
+      <header className="sticky top-0 z-30 bg-permata-topbar text-white border-b border-permata-forest-dark/30">
         <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-slate-800 text-white">
-              <BarChart3 className="h-5 w-5" />
-            </div>
+            {/* Permata Group logo */}
+            <img src="/permatagroup-logo.svg" alt="Permata Group" className="h-8 w-auto" />
+            <div className="h-6 w-px bg-white/20" />
             <div>
-              <h1 className="text-base font-semibold flex items-center gap-2">
-                Rekap Admin — Form TTP
-                <Badge variant="secondary" className="text-[10px]">
+              <h1 className="text-base font-semibold flex items-center gap-2 text-white">
+                Rekap Admin
+                <Badge className="text-[10px] bg-white/15 text-white hover:bg-white/20 border-0">
                   <Shield className="h-2.5 w-2.5 mr-0.5" />
                   Admin
                 </Badge>
               </h1>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-white/60">
                 Rekap semua laporan TTP
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onBackToForm}>
+            <Button variant="ghost" size="sm" onClick={onBackToForm} className="!text-white/80 hover:!text-white hover:!bg-white/10">
               <ArrowLeft className="h-4 w-4 mr-1.5" />
               Kembali ke Form
             </Button>
-            <Button variant="ghost" size="sm" onClick={onLogoutAdmin} className="text-destructive hover:text-destructive">
+            <Button variant="ghost" size="sm" onClick={onLogoutAdmin} className="!text-red-300 hover:!text-red-200 hover:!bg-red-500/10">
               <LogOut className="h-4 w-4 mr-1.5" />
               Keluar Admin
             </Button>
@@ -208,20 +213,28 @@ function FormView({
 }) {
   const store = useTtpStore()
 
-  // Auto-load the most recent DRAFT report on mount (so suppliers don't lose work on reload)
-  const autoLoadRecentDraft = useCallback(async () => {
+  // Per-browser session: use localStorage to remember which report THIS browser is working on.
+  // This prevents the bug where multiple people opening the link see the same draft.
+  const SESSION_KEY = 'ttp_report_id'
+
+  const loadMyReport = useCallback(async () => {
     try {
-      const r = await fetch('/api/reports')
-      if (!r.ok) return
-      const data: ReportListItem[] = await r.json()
-      // Find the most recent DRAFT (not PUBLISHED — published reports are locked, no point resuming)
-      const recentDraft = data.find((d) => d.status === 'DRAFT')
-      if (recentDraft) {
-        const full = await fetch(`/api/reports/${recentDraft.id}`)
-        if (full.ok) {
-          const reportData = await full.json()
-          store.loadFromApi(reportData)
-        }
+      const myReportId = localStorage.getItem(SESSION_KEY)
+      if (!myReportId) return // No report for this browser — start fresh
+
+      const r = await fetch(`/api/reports/${myReportId}`)
+      if (!r.ok) {
+        // Report was deleted or doesn't exist — clear localStorage
+        localStorage.removeItem(SESSION_KEY)
+        return
+      }
+      const data = await r.json()
+      // Only auto-load if it's still a DRAFT (published reports are locked)
+      if (data.status === 'DRAFT') {
+        store.loadFromApi(data)
+      } else {
+        // Already published — clear localStorage so user starts fresh next time
+        localStorage.removeItem(SESSION_KEY)
       }
     } catch (e) {
       // Silent fail — just start with empty form
@@ -232,15 +245,17 @@ function FormView({
     if (adminViewingReportId) {
       loadReport(adminViewingReportId)
     } else {
-      autoLoadRecentDraft()
+      loadMyReport()
     }
-  }, [adminViewingReportId, autoLoadRecentDraft])
+  }, [adminViewingReportId, loadMyReport])
 
-  // Auto-save (debounced) when dirty — skip when viewing published report from admin
+  // Auto-save (debounced) when dirty — admin can save published reports, supplier cannot
+  const isSavingRef = useRef(false)
+
   useEffect(() => {
     if (!store.isDirty) return
-    if (isFromAdmin) return // admin viewing a report doesn't auto-save
-    if (store.status === 'PUBLISHED') return // locked
+    // Supplier cannot save published reports (locked)
+    if (store.status === 'PUBLISHED' && !isFromAdmin) return
     const t = setTimeout(async () => {
       await saveAll(false)
     }, 2500)
@@ -248,12 +263,16 @@ function FormView({
   }, [store.isDirty, store.suppliers, store.agen, store.pks, store.p1m, store.status, isFromAdmin])
 
   const saveAll = async (showToast = true) => {
-    if (store.isSaving) return
+    // Use ref to prevent concurrent saves (race condition fix)
+    if (isSavingRef.current) return
+    isSavingRef.current = true
+    store.setSaving(true)
     if (store.status === 'PUBLISHED' && !isFromAdmin) {
       if (showToast) toast.error('Laporan sudah dipublikasi, tidak dapat disimpan')
+      isSavingRef.current = false
+      store.setSaving(false)
       return
     }
-    store.setSaving(true)
     try {
       const payload = {
         name: store.reportName || `Laporan TTP - ${store.pks.pksName || 'Tanpa Nama'}`,
@@ -285,6 +304,8 @@ function FormView({
         const created = await r.json()
         reportId = created.id
         store.setReportId(reportId)
+        // Save to localStorage so this browser remembers its own report
+        localStorage.setItem(SESSION_KEY, reportId)
       } else {
         const r = await fetch(`/api/reports/${reportId}`, {
           method: 'PUT',
@@ -318,6 +339,7 @@ function FormView({
       console.error(e)
       if (showToast) toast.error('Gagal menyimpan: ' + e.message)
     } finally {
+      isSavingRef.current = false
       store.setSaving(false)
     }
   }
@@ -345,6 +367,8 @@ function FormView({
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || 'Failed to publish')
       store.setStatus('PUBLISHED', new Date().toISOString())
+      // Clear localStorage so supplier starts fresh next time
+      localStorage.removeItem(SESSION_KEY)
       toast.success('Laporan berhasil dipublikasi. Laporan akan muncul di Rekap Admin.')
     } catch (e: any) {
       toast.error('Gagal mempublikasi: ' + e.message)
@@ -356,6 +380,8 @@ function FormView({
   const newReport = () => {
     if (store.isDirty && !store.isPublished && !confirm('Buang perubahan yang belum disimpan?')) return
     store.reset()
+    // Clear localStorage so this browser starts a fresh session
+    localStorage.removeItem(SESSION_KEY)
     toast.info('Laporan baru dimulai')
   }
 
@@ -396,31 +422,35 @@ function FormView({
   const supplierCount = store.suppliers.length
   const agenCount = store.agen.length
   const isPublished = store.status === 'PUBLISHED'
-  const isLocked = isPublished || isFromAdmin
+  // Admin CAN edit published reports (for fixing duplicates, etc.)
+  // Supplier CANNOT edit published reports (locked)
+  const isLocked = isPublished && !isFromAdmin
   const canEdit = !isLocked
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen bg-permata-green-light/20">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-background border-b">
+      {/* Permata Group top gradient bar */}
+      <div className="h-1 bg-permata-accent-line" />
+      <header className="sticky top-0 z-30 bg-permata-topbar text-white border-b border-permata-forest-dark/30">
         <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             {isFromAdmin ? (
-              <Button variant="ghost" size="sm" onClick={onBackToAdmin}>
+              <Button variant="ghost" size="sm" onClick={onBackToAdmin} className="!text-white/80 hover:!text-white hover:!bg-white/10">
                 <ArrowLeft className="h-4 w-4 mr-1.5" />
                 Kembali ke Rekap
               </Button>
             ) : (
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 rounded-lg bg-emerald-600 text-white">
-                  <FileSpreadsheet className="h-5 w-5" />
-                </div>
+                {/* Permata Group logo */}
+                <img src="/permatagroup-logo.svg" alt="Permata Group" className="h-8 w-auto" />
+                <div className="h-6 w-px bg-white/20" />
                 <div className="min-w-0">
-                  <h1 className="text-base font-semibold truncate">
-                    Form TTP — Traceability to Plantation
+                  <h1 className="text-base font-semibold truncate text-white">
+                    Form TTP
                   </h1>
-                  <p className="text-xs text-muted-foreground">
-                    Kemamputelusuran TBS ke Kebun
+                  <p className="text-xs text-white/60">
+                    Traceability to Plantation
                   </p>
                 </div>
               </div>
@@ -429,15 +459,15 @@ function FormView({
 
           <div className="flex items-center gap-2 flex-wrap">
             {isPublished && !isFromAdmin && (
-              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+              <Badge className="bg-permata-accent/20 text-permata-accent border border-permata-accent/30 hover:bg-permata-accent/30">
                 <Lock className="h-3 w-3 mr-1" />
                 Dipublikasi
               </Badge>
             )}
             {isFromAdmin && (
-              <Badge variant="secondary">
-                <Eye className="h-3 w-3 mr-1" />
-                Mode Lihat (Admin)
+              <Badge className="bg-white/15 text-white border-0 hover:bg-white/20">
+                <Shield className="h-3 w-3 mr-1" />
+                Mode Edit (Admin)
               </Badge>
             )}
 
@@ -447,7 +477,7 @@ function FormView({
                   value={store.reportName}
                   onChange={(e) => store.setReportName(e.target.value)}
                   placeholder="Nama laporan..."
-                  className="h-9 w-[180px] md:w-[240px]"
+                  className="h-9 w-[180px] md:w-[240px] bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white/15 focus:border-white/30"
                   disabled={isLocked}
                 />
 
@@ -456,6 +486,7 @@ function FormView({
                   size="sm"
                   onClick={newReport}
                   disabled={store.isSaving}
+                  className="!border-white/30 !bg-white/10 !text-white hover:!bg-white/20 hover:!text-white"
                 >
                   <Plus className="h-4 w-4 mr-1.5" />
                   Baru
@@ -467,7 +498,7 @@ function FormView({
                   disabled={
                     isPublished || store.isPublishing || store.isSaving || !store.reportId
                   }
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="!bg-permata-accent !text-white hover:!bg-permata-accent/90 !border-0"
                 >
                   {store.isPublishing ? (
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -485,7 +516,26 @@ function FormView({
               </>
             )}
 
-            <Button variant="outline" size="sm" onClick={exportExcel}>
+            {/* Admin can save when editing a published report */}
+            {isFromAdmin && (
+              <Button
+                size="sm"
+                onClick={() => saveAll(true)}
+                disabled={store.isSaving || !store.isDirty}
+                className="!bg-permata-accent !text-white hover:!bg-permata-accent/90 !border-0"
+              >
+                {store.isSaving ? (
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                ) : store.isDirty ? (
+                  <Save className="h-4 w-4 mr-1.5" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                )}
+                {store.isSaving ? 'Menyimpan...' : store.isDirty ? 'Simpan' : 'Tersimpan'}
+              </Button>
+            )}
+
+            <Button variant="outline" size="sm" onClick={exportExcel} className="!border-white/30 !bg-white/10 !text-white hover:!bg-white/20 hover:!text-white">
               <Download className="h-4 w-4 mr-1.5" />
               Excel
             </Button>
@@ -493,19 +543,42 @@ function FormView({
         </div>
 
         {/* Status bar */}
-        <div className="max-w-[1400px] mx-auto px-4 pb-2 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+        <div className="max-w-[1400px] mx-auto px-4 pb-2 flex items-center gap-3 text-xs text-white/50 flex-wrap">
           {store.reportId ? (
-            <Badge variant="outline" className="text-[10px] font-normal">
-              ID: {store.reportId.slice(-8)}
+            <Badge
+              className="text-[10px] font-normal bg-white/10 text-white/70 border-white/15 hover:bg-white/20 cursor-pointer"
+              onClick={() => {
+                navigator.clipboard.writeText(store.reportId!)
+                toast.success(`Kode laporan disalin: ${store.reportId}`)
+              }}
+              title="Klik untuk copy kode lengkap"
+            >
+              Kode: {store.reportId}
+              <Copy className="h-2.5 w-2.5 ml-1 inline" />
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-[10px] font-normal text-amber-700 border-amber-300">
+            <Badge className="text-[10px] font-normal bg-amber-500/20 text-amber-300 border-amber-400/30 hover:bg-amber-500/30">
               <AlertCircle className="h-3 w-3 mr-1" />
               Belum disimpan
             </Badge>
           )}
+          {/* Buka dengan Kode — supplier can load a specific report by ID */}
+          {!isFromAdmin && !store.reportId && (
+            <div className="flex items-center gap-1">
+              <Input
+                placeholder="Buka dengan kode laporan..."
+                className="h-7 w-[200px] text-[11px] bg-white/10 border-white/20 text-white placeholder:text-white/40"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const code = (e.target as HTMLInputElement).value.trim()
+                    if (code) loadReport(code)
+                  }
+                }}
+              />
+            </div>
+          )}
           {isPublished && (
-            <span className="text-emerald-600">
+            <span className="text-permata-accent">
               • Laporan dipublikasi
               {store.publishedAt &&
                 ` pada ${new Date(store.publishedAt).toLocaleString('id-ID', {
@@ -515,7 +588,7 @@ function FormView({
             </span>
           )}
           {!isPublished && store.isDirty && (
-            <span className="text-amber-600">• Perubahan belum tersimpan (auto-save aktif)</span>
+            <span className="text-amber-300">• Perubahan belum tersimpan (auto-save aktif)</span>
           )}
           {!isPublished && store.lastSavedAt && !store.isDirty && (
             <span>• Tersimpan {new Date(store.lastSavedAt).toLocaleTimeString('id-ID')}</span>
@@ -530,25 +603,31 @@ function FormView({
       <main className="max-w-[1400px] mx-auto px-4 py-6">
         {isLocked && (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2">
-            {isFromAdmin ? (
-              <Eye className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            ) : (
-              <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            )}
+            <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
-              {isFromAdmin
-                ? 'Anda membuka laporan ini dari Rekap Admin. Untuk mengedit, buka kembali ke status DRAFT dari halaman Rekap Admin.'
-                : 'Laporan ini sudah dipublikasi dan terkunci. Untuk merevisi, buka laporan ini di Rekap Admin dan klik "Buka kembali ke DRAFT".'}
+              Laporan ini sudah dipublikasi dan terkunci. Untuk merevisi, hubungi admin
+              atau buka laporan ini di Rekap Admin dan klik &quot;Buka kembali ke DRAFT&quot;.
+            </span>
+          </div>
+        )}
+        {/* Admin editing a published report */}
+        {isFromAdmin && isPublished && !isLocked && (
+          <div className="mb-4 rounded-md border border-permata-accent/30 bg-permata-green-light/50 p-3 text-xs text-permata-teal flex items-start gap-2">
+            <Shield className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              <strong>Mode Edit Admin:</strong> Anda dapat mengedit laporan yang sudah dipublikasi.
+              Perubahan akan tersimpan otomatis. Hapus duplikat atau perbaiki data yang salah,
+              lalu klik Simpan.
             </span>
           </div>
         )}
 
         <Tabs value={store.activeTab} onValueChange={(v) => store.setActiveTab(v as any)} className="w-full">
-          <TabsList className="w-full justify-start flex-wrap h-auto">
-            <TabsTrigger value="rekapan" className="data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
+          <TabsList className="w-full justify-start flex-wrap h-auto bg-permata-green-light/50">
+            <TabsTrigger value="rekapan" className="data-[state=active]:!bg-permata-teal data-[state=active]:!text-white data-[state=active]:shadow-sm data-[state=active]:border-permata-teal">
               1. Rekapan TTP (P1.M)
             </TabsTrigger>
-            <TabsTrigger value="supplier" className="data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
+            <TabsTrigger value="supplier" className="data-[state=active]:!bg-permata-teal data-[state=active]:!text-white data-[state=active]:shadow-sm data-[state=active]:border-permata-teal">
               2. List Supplier TBS (P2.A)
               {supplierCount > 0 && (
                 <Badge variant="secondary" className="ml-1.5 text-[10px]">
@@ -556,7 +635,7 @@ function FormView({
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="agen" className="data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
+            <TabsTrigger value="agen" className="data-[state=active]:!bg-permata-teal data-[state=active]:!text-white data-[state=active]:shadow-sm data-[state=active]:border-permata-teal">
               3. Agen-Pengumpul (P2.B)
               {agenCount > 0 && (
                 <Badge variant="secondary" className="ml-1.5 text-[10px]">
@@ -564,7 +643,7 @@ function FormView({
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="summary" className="data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
+            <TabsTrigger value="summary" className="data-[state=active]:!bg-permata-teal data-[state=active]:!text-white data-[state=active]:shadow-sm data-[state=active]:border-permata-teal">
               4. Summary
             </TabsTrigger>
           </TabsList>
@@ -610,20 +689,25 @@ function FormView({
           </TabsContent>
 
           <TabsContent value="summary" className="mt-4">
-            <SummaryPanel />
+            <SummaryPanel isAdmin={isFromAdmin} />
           </TabsContent>
         </Tabs>
 
-        <footer className="mt-10 pt-6 border-t text-xs text-muted-foreground space-y-2">
+        <footer className="mt-10 pt-6 border-t border-permata-forest/30 text-xs text-permata-subtitle space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <img src="/permatagroup-logo.svg" alt="Permata Group" className="h-5 w-auto opacity-70" />
+            <span className="text-permata-teal font-medium">Permata Group</span>
+          </div>
           <p>
-            <strong>Form TTP Web App</strong> — Konversi digital dari Excel &quot;02. Form TTP (KOSONG)
-            Cleaned.xlsm&quot;. Mendukung: Pernyataan TTP (P1.M), List Supplier TBS (P2.A),
-            Pemasok Tidak Langsung (P2.B), Summary otomatis, dan ekspor ke Excel.
+            <strong className="text-permata-teal">Form TTP</strong> — Traceability to Plantation.
+            Sistem kemamputelusuran TBS ke kebun untuk Pabrik Kelapa Sawit (PKS).
+            Mendukung: Pernyataan TTP (P1.M), List Supplier TBS (P2.A), Pemasok Tidak Langsung (P2.B),
+            Summary otomatis, dan ekspor ke Excel.
           </p>
           <p>
-            Data tersimpan otomatis di database lokal. Master data desa (18.510 entri) bersumber
-            dari sheet MSD SSD. Setelah selesai mengisi, klik <strong>Publikasi</strong> untuk
-            mengunci laporan — laporan akan muncul di <strong>Rekap Admin</strong>.
+            Data tersimpan otomatis di database cloud. Master data desa (18.510 entri) bersumber
+            dari sheet MSD SSD. Setelah selesai mengisi, klik <strong className="text-permata-accent">Publikasi</strong> untuk
+            mengunci laporan — laporan akan muncul di <strong className="text-permata-teal">Rekap Admin</strong>.
           </p>
         </footer>
       </main>

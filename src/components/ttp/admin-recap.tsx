@@ -27,6 +27,12 @@ interface AdminReport {
     supplierCount: number
     agenCount: number
   }
+  msdDistribution?: {
+    msd: number
+    nonMsd: number
+    na: number
+    unmatched: number
+  }
 }
 
 type SortKey = 'updatedAt' | 'pksName' | 'totalVolume' | 'ttpPct' | 'status'
@@ -187,7 +193,7 @@ export function AdminRecap({ onOpenReport }: Props) {
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total Laporan" value={reports.length.toString()} icon={Layers} />
-        <StatCard label="Sudah Dipublikasi" value={totalPublished.toString()} icon={Lock} color="emerald" />
+        <StatCard label="Sudah Dipublikasi" value={totalPublished.toString()} icon={Lock} color="permata" />
         <StatCard label="Masih Draft" value={totalDraft.toString()} icon={Unlock} color="amber" />
         <StatCard label="Total Volume (Publik)" value={`${totalVolume.toLocaleString('id-ID', { maximumFractionDigits: 0 })} ton`} icon={Factory} />
       </div>
@@ -238,6 +244,7 @@ export function AdminRecap({ onOpenReport }: Props) {
                 <TableHead className="text-right">% TTP</TableHead>
                 <TableHead className="text-center">Pemasok</TableHead>
                 <TableHead className="text-center">Agen</TableHead>
+                <TableHead className="text-center">MSD / Non-MSD / N/A</TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('updatedAt')}>
                   Diperbarui {sortKey === 'updatedAt' && (sortAsc ? '↑' : '↓')}
                 </TableHead>
@@ -247,7 +254,7 @@ export function AdminRecap({ onOpenReport }: Props) {
             <TableBody>
               {sorted.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     {loading ? 'Memuat...' : 'Tidak ada laporan'}
                   </TableCell>
                 </TableRow>
@@ -265,7 +272,7 @@ export function AdminRecap({ onOpenReport }: Props) {
                     <TableCell className="text-xs">{r.periode || '—'}</TableCell>
                     <TableCell>
                       {r.status === 'PUBLISHED' ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                        <Badge className="bg-permata-accent/20 text-permata-accent hover:bg-permata-accent/30">
                           <Lock className="h-3 w-3 mr-1" />
                           Dipublikasi
                         </Badge>
@@ -283,7 +290,7 @@ export function AdminRecap({ onOpenReport }: Props) {
                       <span
                         className={
                           r.stats.ttpPct >= 0.95
-                            ? 'text-emerald-600 font-medium'
+                            ? 'text-permata-accent font-medium'
                             : r.stats.ttpPct >= 0.5
                             ? 'text-amber-600 font-medium'
                             : 'text-rose-600 font-medium'
@@ -294,6 +301,25 @@ export function AdminRecap({ onOpenReport }: Props) {
                     </TableCell>
                     <TableCell className="text-center tabular-nums">{r.stats.supplierCount}</TableCell>
                     <TableCell className="text-center tabular-nums">{r.stats.agenCount}</TableCell>
+                    <TableCell className="text-center">
+                      {r.msdDistribution ? (
+                        <div className="flex items-center justify-center gap-1.5 text-[11px]">
+                          <span className="text-permata-forest font-medium">
+                            {r.msdDistribution.msd} MSD
+                          </span>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="text-amber-600">
+                            {r.msdDistribution.nonMsd} Non
+                          </span>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="text-muted-foreground">
+                            {r.msdDistribution.na + r.msdDistribution.unmatched} N/A
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {new Date(r.updatedAt).toLocaleDateString('id-ID', {
                         day: '2-digit',
@@ -369,10 +395,10 @@ function StatCard({
   label: string
   value: string
   icon: any
-  color?: 'default' | 'emerald' | 'amber'
+  color?: 'default' | 'permata' | 'amber'
 }) {
-  const bg = color === 'emerald' ? 'bg-emerald-50' : color === 'amber' ? 'bg-amber-50' : 'bg-muted/40'
-  const fg = color === 'emerald' ? 'text-emerald-600' : color === 'amber' ? 'text-amber-600' : 'text-foreground'
+  const bg = color === 'permata' ? 'bg-permata-green-light' : color === 'amber' ? 'bg-amber-50' : 'bg-muted/40'
+  const fg = color === 'permata' ? 'text-permata-accent' : color === 'amber' ? 'text-amber-600' : 'text-foreground'
   return (
     <Card>
       <CardContent className="pt-5">

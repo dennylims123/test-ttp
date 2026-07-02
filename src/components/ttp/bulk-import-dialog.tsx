@@ -17,6 +17,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Users,
+  MapPin,
+  MapPinOff,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -25,7 +28,10 @@ import {
   toFarmerRows,
   generateTemplateCsv,
   downloadString,
+  validateVillages,
+  enrichFarmersWithVillages,
   type ParseResult,
+  type ParsedFarmer,
 } from '@/lib/ttp/bulk-import'
 
 interface Props {
@@ -50,9 +56,17 @@ export function BulkImportFarmers({
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
   const [parsing, setParsing] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [validating, setValidating] = useState(false)
+  const [validationSummary, setValidationSummary] = useState<{
+    matched: number
+    notFound: number
+    autoFilled: number
+    unmatchedNames: string[]
+  } | null>(null)
 
   const handleParse = useCallback((text: string) => {
     setPasteText(text)
+    setValidationSummary(null)
     if (!text.trim()) {
       setParseResult(null)
       return
@@ -63,6 +77,10 @@ export function BulkImportFarmers({
       try {
         const result = parseBulkPaste(text)
         setParseResult(result)
+        // Auto-trigger validation if there are farmers with desa names
+        if (result.farmers.length > 0) {
+          validateParsedFarmers(result.farmers)
+        }
       } catch (e: any) {
         toast.error('Gagal memparse data: ' + e.message)
         setParseResult(null)
@@ -72,8 +90,52 @@ export function BulkImportFarmers({
     }, 50)
   }, [])
 
+  const validateParsedFarmers = useCallback(async (farmers: ParsedFarmer[]) => {
+    const desaNames = farmers
+      .map((f) => f.desa.trim())
+      .filter(Boolean)
+    if (desaNames.length === 0) return
+
+    setValidating(true)
+    try {
+      const validation = await validateVillages(desaNames)
+      if (Object.keys(validation).length === 0) {
+        // Validation failed silently (API error) — skip
+        setValidationSummary(null)
+        return
+      }
+      const { farmers: enriched, summary } = enrichFarmersWithVillages(
+        farmers,
+        validation
+      )
+      // Update parseResult with enriched farmers
+      setParseResult((prev) =>
+        prev ? { ...prev, farmers: enriched } : prev
+      )
+      setValidationSummary({
+        matched: summary.matched,
+        notFound: summary.notFound,
+        autoFilled: summary.autoFilled,
+        unmatchedNames: summary.unmatchedNames,
+      })
+      if (summary.matched > 0) {
+        toast.success(
+          `${summary.matched} desa valid di MSD SSD` +
+            (summary.autoFilled > 0
+              ? ` · ${summary.autoFilled} field auto-isi`
+              : '')
+        )
+      }
+    } catch (e: any) {
+      // Silent fail — validation is optional
+    } finally {
+      setValidating(false)
+    }
+  }, [])
+
   const handleFileUpload = useCallback(async (file: File) => {
     setParsing(true)
+    setValidationSummary(null)
     try {
       const result = await parseCsvFile(file)
       setParseResult(result)
@@ -81,12 +143,16 @@ export function BulkImportFarmers({
       const text = await file.text()
       setPasteText(text)
       toast.success(`${result.farmers.length} baris terbaca dari file`)
+      // Auto-trigger validation
+      if (result.farmers.length > 0) {
+        validateParsedFarmers(result.farmers)
+      }
     } catch (e: any) {
       toast.error('Gagal membaca file: ' + e.message)
     } finally {
       setParsing(false)
     }
-  }, [])
+  }, [validateParsedFarmers])
 
   const handleDownloadTemplate = useCallback(() => {
     downloadString('template-petani.csv', generateTemplateCsv())
@@ -110,6 +176,7 @@ export function BulkImportFarmers({
         // Reset
         setPasteText('')
         setParseResult(null)
+        setValidationSummary(null)
         onClose()
       } catch (e: any) {
         toast.error('Gagal mengimpor: ' + e.message)
@@ -123,6 +190,7 @@ export function BulkImportFarmers({
   const handleClose = () => {
     setPasteText('')
     setParseResult(null)
+    setValidationSummary(null)
     onClose()
   }
 
@@ -139,7 +207,8 @@ export function BulkImportFarmers({
           </DialogTitle>
           <DialogDescription>
             Agen: <strong>{agenName}</strong> · Saat ini: {existingCount} petani ·
-            Tempel data dari Excel atau unggah file CSV untuk menambah ratusan/ribuan petani sekaligus.
+            Tempel data dari Excel atau unggah file CSV. Nama desa akan otomatis divalidasi ke
+            database MSD SSD (18.510 desa) dan kecamatan/kabupaten akan diisi otomatis.
           </DialogDescription>
         </DialogHeader>
 
@@ -218,9 +287,9 @@ export function BulkImportFarmers({
         {/* Preview */}
         {parseResult && (
           <div className="border rounded-md flex flex-col max-h-[300px]">
-            <div className="flex items-center justify-between p-2 border-b bg-muted/40 text-xs">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <div className="flex items-center justify-between p-2 border-b bg-muted/40 text-xs flex-wrap gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <CheckCircle2 className="h-3.5 w-3.5 text-permata-accent" />
                 <span>
                   <strong>{parseResult.farmers.length}</strong> baris siap diimpor
                 </span>
@@ -248,6 +317,37 @@ export function BulkImportFarmers({
                   : ''}
               </span>
             </div>
+
+            {/* MSD SSD Validation summary */}
+            {validating && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-blue-200 text-xs text-blue-800">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Memvalidasi desa ke database MSD SSD (18.510 desa)...
+              </div>
+            )}
+            {!validating && validationSummary && (
+              <div className="flex items-center gap-3 px-3 py-1.5 bg-permata-green-light border-b border-permata-accent/20 text-xs flex-wrap">
+                {validationSummary.matched > 0 && (
+                  <span className="flex items-center gap-1 text-permata-forest">
+                    <MapPin className="h-3 w-3" />
+                    <strong>{validationSummary.matched}</strong> desa valid
+                  </span>
+                )}
+                {validationSummary.autoFilled > 0 && (
+                  <span className="flex items-center gap-1 text-permata-accent">
+                    <Sparkles className="h-3 w-3" />
+                    <strong>{validationSummary.autoFilled}</strong> field auto-isi
+                  </span>
+                )}
+                {validationSummary.notFound > 0 && (
+                  <span className="flex items-center gap-1 text-amber-700">
+                    <MapPinOff className="h-3 w-3" />
+                    <strong>{validationSummary.notFound}</strong> desa tidak ditemukan
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="overflow-auto flex-1">
               <Table>
                 <TableHeader className="sticky top-0">
@@ -261,20 +361,62 @@ export function BulkImportFarmers({
                     <TableHead>Kecamatan</TableHead>
                     <TableHead>Kabupaten</TableHead>
                     <TableHead className="w-20">Luas (Ha)</TableHead>
+                    <TableHead className="w-16">MSD</TableHead>
+                    <TableHead className="w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {previewFarmers.map((f, i) => (
-                    <TableRow key={i} className={f._warnings.length > 0 ? 'bg-amber-50' : ''}>
+                    <TableRow
+                      key={i}
+                      className={
+                        f._warnings.length > 0
+                          ? 'bg-amber-50'
+                          : f._villageMatched === true
+                          ? 'bg-permata-green-light/50'
+                          : f._villageMatched === false && f.desa
+                          ? 'bg-orange-50'
+                          : ''
+                      }
+                    >
                       <TableCell className="text-xs">{i + 1}</TableCell>
                       <TableCell className="text-xs font-medium">{f.nama}</TableCell>
                       <TableCell className="text-xs">{f.lintang || '-'}</TableCell>
                       <TableCell className="text-xs">{f.bujur || '-'}</TableCell>
                       <TableCell className="text-xs">{f.legalitas || '-'}</TableCell>
-                      <TableCell className="text-xs">{f.desa || '-'}</TableCell>
-                      <TableCell className="text-xs">{f.kecamatan || '-'}</TableCell>
+                      <TableCell className="text-xs">
+                        {f.desa || '-'}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {f.kecamatan || '-'}
+                        {f._villageMatched === true && f.desa && (
+                          <Sparkles className="inline h-2.5 w-2.5 ml-1 text-permata-accent" />
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs">{f.kabupaten || '-'}</TableCell>
                       <TableCell className="text-xs tabular-nums">{f.luasKebun ?? '-'}</TableCell>
+                      <TableCell className="text-xs">
+                        {f._villageMatched === true ? (
+                          <span className={
+                            f._msdStatus === 'MSD'
+                              ? 'text-permata-forest font-medium'
+                              : f._msdStatus === 'Non-MSD'
+                              ? 'text-amber-600'
+                              : 'text-muted-foreground'
+                          }>
+                            {f._msdStatus || '#N/A'}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {f._villageMatched === true && f.desa ? (
+                          <MapPin className="h-3.5 w-3.5 text-permata-forest" />
+                        ) : f._villageMatched === false && f.desa ? (
+                          <MapPinOff className="h-3.5 w-3.5 text-amber-600" />
+                        ) : null}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -303,7 +445,7 @@ export function BulkImportFarmers({
             size="sm"
             onClick={() => handleImport('replace')}
             disabled={importing || !parseResult?.farmers.length}
-            className="bg-emerald-600 hover:bg-emerald-700"
+            className="bg-permata-accent hover:bg-permata-accent/90"
           >
             {importing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
             {existingCount > 0 ? 'Ganti Semua' : 'Import'} ({parseResult?.farmers.length || 0})

@@ -56,7 +56,7 @@ export function AdminPinDialog({ open, onSuccess, onCancel }: Props) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-2 rounded-lg bg-slate-800 text-white">
+            <div className="p-2 rounded-lg bg-permata-deep-teal text-white">
               <Shield className="h-4 w-4" />
             </div>
             <DialogTitle>Akses Rekap Admin</DialogTitle>

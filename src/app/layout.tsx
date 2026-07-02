@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Plus Jakarta Sans is the closest free Google Font to Aptos (Permata Group's font)
+// Aptos is a Microsoft proprietary font not available on Google Fonts.
+const aptos = Plus_Jakarta_Sans({
+  variable: "--font-aptos",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+const aptosDisplay = Plus_Jakarta_Sans({
+  variable: "--font-aptos-display",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -14,11 +23,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Form TTP — Traceability to Plantation",
-  description: "Aplikasi web Form TTP (Traceability to Plantation) untuk Pabrik Kelapa Sawit (PKS). Konversi digital dari Excel Form TTP.",
-  keywords: ["TTP", "Traceability", "Palm Oil", "PKS", "TBS", "FFB"],
+  title: "Permata Group — Form TTP",
+  description: "Form TTP (Traceability to Plantation) — Permata Group. Sistem kemamputelusuran TBS ke kebun untuk Pabrik Kelapa Sawit.",
+  keywords: ["TTP", "Traceability", "Permata Group", "Palm Oil", "PKS", "TBS", "FFB"],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/permatagroup-logo.svg",
   },
 };
 
@@ -30,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="id" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${aptos.variable} ${aptosDisplay.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         {children}
         <Toaster />

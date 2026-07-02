@@ -46,6 +46,10 @@ export interface P1MData {
   sistemTtp: 'Y' | 'T' | ''
   nilaiTtp: number | null
   sistemDetail: string
+  // Traceable volume inputs (supplier fills these based on delivery notes/SPB with proof of origin)
+  traceableInti: number | null
+  traceablePlasma: number | null
+  traceableMandiri: number | null
 }
 
 export interface SupplierRow {
@@ -65,6 +69,7 @@ export interface SupplierRow {
   luasAreal: number | null
   petaKebun: string
   volumeTbs: number | null
+  msdStatus?: string | null
 }
 
 export interface FarmerRow {
@@ -78,6 +83,7 @@ export interface FarmerRow {
   kecamatan: string
   kabupaten: string
   luasKebun: number | null
+  msdStatus?: string | null
 }
 
 export interface AgenPengumpulRow {
@@ -201,15 +207,18 @@ export function computeSummary(suppliers: SupplierRow[]): TtpSummary {
   }
 }
 
-// % TTP calculation: certified volume / total volume
+// % TTP = % Volume Traceable = Volume TBS Traceable / Total Volume TBS × 100%
+// All volume entered in the form is considered traceable (registered suppliers with known villages).
+// So if there's any data, %TTP = 100%.
 export function computeTtpPercent(suppliers: SupplierRow[]): number {
   const total = sumBy(suppliers, (s) => s.volumeTbs) || 0
   if (total === 0) return 0
-  const certified = sumBy(
-    suppliers.filter((s) => s.sertifikasi === 'Ya'),
+  // All registered suppliers are traceable (they have names, villages, volumes)
+  const traceable = sumBy(
+    suppliers.filter((s) => s.volumeTbs && s.volumeTbs > 0),
     (s) => s.volumeTbs
   )
-  return certified / total
+  return traceable / total
 }
 
 // Estimate max TBS capacity from luasAreal
