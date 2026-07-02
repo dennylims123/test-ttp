@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
+import { PrismaLibSQL } from '@prisma/adapter-libsql'
 import { createClient } from '@libsql/client'
 
 const globalForPrisma = globalThis as unknown as {
@@ -20,12 +20,8 @@ function createPrismaClient(): PrismaClient {
   // For Turso (production): DATABASE_URL is libsql://... and DATABASE_AUTH_TOKEN is set
   // For local SQLite (development): DATABASE_URL is file:... and no auth token needed
   if (url.startsWith('libsql://') || url.startsWith('https://')) {
-    // Create the LibSQL client with the real URL + auth token
     const libsql = createClient({ url, authToken })
-    // Use the driver adapter — this bypasses Prisma's built-in SQLite driver
-    // and uses LibSQL (Turso) instead. The adapter handles the connection,
-    // so Prisma's schema URL is never actually used at runtime.
-    const adapter = new PrismaLibSql(libsql)
+    const adapter = new PrismaLibSQL(libsql)
     return new PrismaClient({ adapter })
   }
 
