@@ -2,22 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAdminSession } from '@/lib/ttp/admin-session'
 
-// POST /api/reports/:id/publish  → Publish a DRAFT report (lock it). Anyone can publish.
-// DELETE /api/reports/:id/publish → Revert a PUBLISHED report back to DRAFT ("reject" / reopen). Admin only.
-
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const report = await db.ttpReport.findUnique({ where: { id } })
-  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (report.status === 'PUBLISHED') {
+  const reportResult = await db.execute({
+    sql: `SELECT status FROM ttp_reports WHERE id = ?`,
+    args: [id],
+  })
+  if (reportResult.rows.length === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  if (reportResult.rows[0].status === 'PUBLISHED') {
     return NextResponse.json({ error: 'Sudah dipublikasi' }, { status: 400 })
   }
 
-  const updated = await db.ttpReport.update({
-    where: { id },
-    data: { status: 'PUBLISHED', publishedAt: new Date() },
+  const now = new Date().toISOString()
+  await db.execute({
+    sql: `UPDATE ttp_reports SET status = 'PUBLISHED', published_at = ?, updated_at = ? WHERE id = ?`,
+    args: [now, now, id],
   })
-  return NextResponse.json(updated)
+
+  return NextResponse.json({ ok: true, status: 'PUBLISHED', publishedAt: now })
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,12 +34,19 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     )
   }
 
-  const report = await db.ttpReport.findUnique({ where: { id } })
-  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const updated = await db.ttpReport.update({
-    where: { id },
-    data: { status: 'DRAFT', publishedAt: null },
+  const reportResult = await db.execute({
+    sql: `SELECT status FROM ttp_reports WHERE id = ?`,
+    args: [id],
   })
-  return NextResponse.json(updated)
+  if (reportResult.rows.length === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const now = new Date().toISOString()
+  await db.execute({
+    sql: `UPDATE ttp_reports SET status = 'DRAFT', published_at = NULL, updated_at = ? WHERE id = ?`,
+    args: [now, id],
+  })
+
+  return NextResponse.json({ ok: true, status: 'DRAFT' })
 }

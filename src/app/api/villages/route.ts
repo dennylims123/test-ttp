@@ -1,27 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// GET /api/villages?q=...&limit=20  -> search by village name
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const q = (searchParams.get('q') || '').trim().toLowerCase()
+  const q = (searchParams.get('q') || '').trim()
   const limit = Math.min(parseInt(searchParams.get('limit') || '30'), 100)
 
   if (!q) {
     return NextResponse.json([])
   }
 
-  // SQLite LIKE is case-insensitive for ASCII only. Use contains for unicode.
-  const villages = await db.village.findMany({
-    where: {
-      OR: [
-        { desa: { contains: q } },
-        { full: { contains: q } },
-      ],
-    },
-    take: limit,
-    orderBy: { desa: 'asc' },
+  const result = await db.execute({
+    sql: 'SELECT id, desa, full FROM villages WHERE desa LIKE ? OR full LIKE ? ORDER BY desa ASC LIMIT ?',
+    args: [`%${q}%`, `%${q}%`, limit],
   })
+
+  const villages = result.rows.map((row: any) => ({
+    id: row.id,
+    desa: row.desa,
+    full: row.full,
+  }))
 
   return NextResponse.json(villages)
 }

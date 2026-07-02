@@ -1,12 +1,10 @@
-import { PrismaClient } from '@prisma/client'
-import { PrismaLibSQL } from '@prisma/adapter-libsql'
-import { createClient } from '@libsql/client'
+import { createClient, type Client } from '@libsql/client'
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+const globalForDb = globalThis as unknown as {
+  libsqlClient: Client | undefined
 }
 
-function createPrismaClient(): PrismaClient {
+function createDbClient(): Client {
   const url = process.env.DATABASE_URL
   const authToken = process.env.DATABASE_AUTH_TOKEN
 
@@ -17,32 +15,28 @@ function createPrismaClient(): PrismaClient {
     )
   }
 
-  // For Turso (production): DATABASE_URL is libsql://... and DATABASE_AUTH_TOKEN is set
-  // For local SQLite (development): DATABASE_URL is file:... and no auth token needed
   if (url.startsWith('libsql://') || url.startsWith('https://')) {
-    const libsql = createClient({ url, authToken })
-    const adapter = new PrismaLibSQL(libsql)
-    return new PrismaClient({ adapter })
+    return createClient({ url, authToken })
   }
 
-  // Local SQLite (development only) — uses Prisma's built-in driver
-  return new PrismaClient({
-    log: ['error', 'warn'],
-  })
+  // Local SQLite (development only)
+  return createClient({ url })
 }
 
 /**
- * Lazy Prisma client proxy.
+ * Raw LibSQL database client (Turso / local SQLite).
  *
- * The actual PrismaClient is only instantiated on first property access,
- * which avoids build-time crashes when DATABASE_URL isn't available yet
- * (Vercel injects env vars at runtime, not at build time).
+ * We bypass Prisma entirely because Prisma's Rust engine has issues reading
+ * env vars on Vercel serverless, causing URL_INVALID errors. Using @libsql/client
+ * directly is simpler, faster (no Rust engine overhead), and works reliably
+ * on serverless platforms.
+ *
+ * The schema is defined in prisma/schema.prisma (for IDE type hints and
+ * migrations), but all queries go through this client.
  */
-export const db = new Proxy({} as PrismaClient, {
-  get(_target, prop) {
-    if (!globalForPrisma.prisma) {
-      globalForPrisma.prisma = createPrismaClient()
-    }
-    return (globalForPrisma.prisma as any)[prop]
-  },
-})
+export const db = globalForDb.libsqlClient ?? createDbClient()
+
+if (process.env.NODE_ENV !== 'production') globalForDb.libsqlClient = db
+
+// Re-export the Client type for convenience
+export type { Client } from '@libsql/client'

@@ -1,23 +1,112 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAdminSession } from '@/lib/ttp/admin-session'
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const report = await db.ttpReport.findUnique({
-    where: { id },
-    include: {
-      suppliers: { orderBy: { no: 'asc' } },
-      agenPengumpul: {
-        orderBy: { no: 'asc' },
-        include: { farmers: { orderBy: { no: 'asc' } } },
-      },
-    },
+
+  const reportResult = await db.execute({
+    sql: `SELECT * FROM ttp_reports WHERE id = ?`,
+    args: [id],
   })
-  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (reportResult.rows.length === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const r: any = reportResult.rows[0]
+
+  const suppliersResult = await db.execute({
+    sql: `SELECT * FROM supplier_tbs WHERE report_id = ? ORDER BY section ASC, no ASC`,
+    args: [id],
+  })
+
+  const agenResult = await db.execute({
+    sql: `SELECT * FROM agen_pengumpul WHERE report_id = ? ORDER BY no ASC`,
+    args: [id],
+  })
+
+  const agenWithFarmers = []
+  for (const a of agenResult.rows) {
+    const farmersResult = await db.execute({
+      sql: `SELECT * FROM farmer WHERE agen_id = ? ORDER BY no ASC`,
+      args: [(a as any).id],
+    })
+    agenWithFarmers.push({
+      id: (a as any).id,
+      no: (a as any).no,
+      namaAgen: (a as any).nama_agen,
+      alamat: (a as any).alamat,
+      lintang: (a as any).lintang,
+      bujur: (a as any).bujur,
+      desaSumber: (a as any).desa_sumber,
+      volumeTbs: (a as any).volume_tbs,
+      linkedSupplierNo: (a as any).linked_supplier_no,
+      farmers: farmersResult.rows.map((f: any) => ({
+        id: f.id,
+        no: f.no,
+        nama: f.nama,
+        lintang: f.lintang,
+        bujur: f.bujur,
+        legalitas: f.legalitas,
+        desa: f.desa,
+        kecamatan: f.kecamatan,
+        kabupaten: f.kabupaten,
+        luasKebun: f.luas_kebun,
+      })),
+    })
+  }
+
+  const report = {
+    id: r.id,
+    name: r.name,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    pksAccountId: r.pks_account_id,
+    status: r.status,
+    publishedAt: r.published_at,
+    pksName: r.pks_name,
+    pksAddress: r.pks_address,
+    pksLatitude: r.pks_latitude,
+    pksLongitude: r.pks_longitude,
+    reportDate: r.report_date,
+    periode: r.periode,
+    totalTbs: r.total_tbs,
+    pengisi: r.pengisi,
+    p1mProduksiTbsBersertifikat: r.p1m_produksi_tbs_bersertifikat,
+    p1mKapasitasPks: r.p1m_kapasitas_pks,
+    p1mProduksiCpo: r.p1m_produksi_cpo,
+    p1mFasilitasKernel: r.p1m_fasilitas_kernel,
+    p1mTotalTbs: r.p1m_total_tbs,
+    p1mTbsKebunInti: r.p1m_tbs_kebun_inti,
+    p1mTbsPlasma: r.p1m_tbs_plasma,
+    p1mTbsMandiri: r.p1m_tbs_mandiri,
+    p1mSistemTtp: r.p1m_sistem_ttp,
+    p1mNilaiTtp: r.p1m_nilai_ttp,
+    p1mSistemDetail: r.p1m_sistem_detail,
+    suppliers: suppliersResult.rows.map((s: any) => ({
+      id: s.id,
+      section: s.section,
+      no: s.no,
+      namaPemasok: s.nama_pemasok,
+      jenisPemasok: s.jenis_pemasok,
+      jumlahPetani: s.jumlah_petani,
+      sertifikasi: s.sertifikasi,
+      desa: s.desa,
+      kecamatan: s.kecamatan,
+      kabupaten: s.kabupaten,
+      lintang: s.lintang,
+      bujur: s.bujur,
+      legalitas: s.legalitas,
+      luasAreal: s.luas_areal,
+      petaKebun: s.peta_kebun,
+      volumeTbs: s.volume_tbs,
+    })),
+    agenPengumpul: agenWithFarmers,
+  }
+
   return NextResponse.json(report)
 }
 
@@ -26,11 +115,17 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const report = await db.ttpReport.findUnique({ where: { id } })
-  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Lock editing of PUBLISHED reports
-  if (report.status === 'PUBLISHED') {
+  const reportResult = await db.execute({
+    sql: `SELECT status FROM ttp_reports WHERE id = ?`,
+    args: [id],
+  })
+
+  if (reportResult.rows.length === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  if (reportResult.rows[0].status === 'PUBLISHED') {
     return NextResponse.json(
       { error: 'Laporan sudah dipublikasi dan tidak dapat diubah. Buka kembali via Rekap Admin.' },
       { status: 403 }
@@ -38,32 +133,44 @@ export async function PUT(
   }
 
   const body = await req.json()
-  const updated = await db.ttpReport.update({
-    where: { id },
-    data: {
-      name: body.name,
-      pksName: body.pksName ?? null,
-      pksAddress: body.pksAddress ?? null,
-      pksLatitude: body.pksLatitude ?? null,
-      pksLongitude: body.pksLongitude ?? null,
-      reportDate: body.reportDate ?? null,
-      periode: body.periode ?? null,
-      totalTbs: body.totalTbs ?? null,
-      pengisi: body.pengisi ?? null,
-      p1mProduksiTbsBersertifikat: body.p1mProduksiTbsBersertifikat ?? null,
-      p1mKapasitasPks: body.p1mKapasitasPks ?? null,
-      p1mProduksiCpo: body.p1mProduksiCpo ?? null,
-      p1mFasilitasKernel: body.p1mFasilitasKernel ?? null,
-      p1mTotalTbs: body.p1mTotalTbs ?? null,
-      p1mTbsKebunInti: body.p1mTbsKebunInti ?? null,
-      p1mTbsPlasma: body.p1mTbsPlasma ?? null,
-      p1mTbsMandiri: body.p1mTbsMandiri ?? null,
-      p1mSistemTtp: body.p1mSistemTtp ?? null,
-      p1mNilaiTtp: body.p1mNilaiTtp ?? null,
-      p1mSistemDetail: body.p1mSistemDetail ?? null,
-    },
+  const now = new Date().toISOString()
+
+  await db.execute({
+    sql: `UPDATE ttp_reports SET
+      name = ?, pks_name = ?, pks_address = ?, pks_latitude = ?, pks_longitude = ?,
+      report_date = ?, periode = ?, total_tbs = ?, pengisi = ?,
+      p1m_produksi_tbs_bersertifikat = ?, p1m_kapasitas_pks = ?, p1m_produksi_cpo = ?,
+      p1m_fasilitas_kernel = ?, p1m_total_tbs = ?, p1m_tbs_kebun_inti = ?,
+      p1m_tbs_plasma = ?, p1m_tbs_mandiri = ?, p1m_sistem_ttp = ?,
+      p1m_nilai_ttp = ?, p1m_sistem_detail = ?, updated_at = ?
+    WHERE id = ?`,
+    args: [
+      body.name,
+      body.pksName ?? null,
+      body.pksAddress ?? null,
+      body.pksLatitude ?? null,
+      body.pksLongitude ?? null,
+      body.reportDate ?? null,
+      body.periode ?? null,
+      body.totalTbs ?? null,
+      body.pengisi ?? null,
+      body.p1mProduksiTbsBersertifikat ?? null,
+      body.p1mKapasitasPks ?? null,
+      body.p1mProduksiCpo ?? null,
+      body.p1mFasilitasKernel ?? null,
+      body.p1mTotalTbs ?? null,
+      body.p1mTbsKebunInti ?? null,
+      body.p1mTbsPlasma ?? null,
+      body.p1mTbsMandiri ?? null,
+      body.p1mSistemTtp ?? null,
+      body.p1mNilaiTtp ?? null,
+      body.p1mSistemDetail ?? null,
+      now,
+      id,
+    ],
   })
-  return NextResponse.json(updated)
+
+  return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(
@@ -71,12 +178,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const report = await db.ttpReport.findUnique({ where: { id } })
-  if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // PUBLISHED reports can only be deleted by admin.
-  // DRAFT reports can be deleted by anyone (supplier originally created them).
-  if (report.status === 'PUBLISHED') {
+  const reportResult = await db.execute({
+    sql: `SELECT status FROM ttp_reports WHERE id = ?`,
+    args: [id],
+  })
+
+  if (reportResult.rows.length === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  if (reportResult.rows[0].status === 'PUBLISHED') {
     const session = await getAdminSession()
     if (!session.isAdmin) {
       return NextResponse.json(
@@ -86,6 +198,22 @@ export async function DELETE(
     }
   }
 
-  await db.ttpReport.delete({ where: { id } })
+  // Delete cascade: farmers → agen_pengumpul → supplier_tbs → ttp_reports
+  await db.batch([
+    {
+      sql: `DELETE FROM farmer WHERE agen_id IN (SELECT id FROM agen_pengumpul WHERE report_id = ?)`,
+      args: [id],
+    },
+    { sql: `DELETE FROM agen_pengumpul WHERE report_id = ?`, args: [id] },
+    { sql: `DELETE FROM supplier_tbs WHERE report_id = ?`, args: [id] },
+    { sql: `DELETE FROM ttp_reports WHERE id = ?`, args: [id] },
+  ])
+
   return NextResponse.json({ ok: true })
+}
+
+// Inline import to avoid circular dependency
+async function getAdminSession() {
+  const { getAdminSession: getSession } = await import('@/lib/ttp/admin-session')
+  return getSession()
 }
