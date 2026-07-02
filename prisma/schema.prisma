@@ -7,12 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  // When using a driver adapter (PrismaLibSql), this URL is NOT used for the
-  // actual connection — the adapter handles that. But Prisma's engine still
-  // validates this field at runtime, so we use a dummy file: URL that always
-  // passes validation. The real connection is made by the adapter in db.ts
-  // using DATABASE_URL + DATABASE_AUTH_TOKEN env vars.
-  url = "file:./dummy.db"
+  url      = "file:./dummy.db"
 }
 
 /// A PKS (Pabrik Kelapa Sawit) account that can submit TTP reports.

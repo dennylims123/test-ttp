@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { searchVillages, listReports } from '@/lib/db'
 
 // Debug endpoint — temporarily added to diagnose Vercel deploy issues.
 // DELETE THIS FILE after debugging is done.
@@ -16,6 +16,8 @@ export async function GET() {
     DATABASE_URL_full_length: dbUrl?.length,
     DATABASE_AUTH_TOKEN_set: !!dbToken,
     DATABASE_AUTH_TOKEN_length: dbToken ? dbToken.length : 0,
+    DATABASE_AUTH_TOKEN_first10: dbToken ? dbToken.slice(0, 10) : null,
+    DATABASE_AUTH_TOKEN_last10: dbToken ? dbToken.slice(-10) : null,
     ADMIN_PIN_set: !!adminPin,
     ADMIN_PIN_length: adminPin ? adminPin.length : 0,
     NODE_ENV: process.env.NODE_ENV,
@@ -25,24 +27,23 @@ export async function GET() {
 
   let dbTest: any = { step: 'not started' }
   try {
-    dbTest.step = 'calling db.execute(SELECT COUNT(*) FROM villages)'
-    const villageResult = await db.execute('SELECT COUNT(*) as cnt FROM villages')
-    const villageCount = (villageResult.rows[0] as any).cnt
-    dbTest.villageCount = villageCount
+    dbTest.step = 'searching villages'
+    const villages = await searchVillages('Ambo', 3)
+    dbTest.step = 'village search succeeded'
+    dbTest.sampleVillages = villages.length
+    dbTest.firstVillage = villages[0]?.desa
 
-    dbTest.step = 'calling db.execute(SELECT COUNT(*) FROM ttp_reports)'
-    const reportResult = await db.execute('SELECT COUNT(*) as cnt FROM ttp_reports')
-    const reportCount = (reportResult.rows[0] as any).cnt
-    dbTest.reportCount = reportCount
+    dbTest.step = 'listing reports'
+    const reports = await listReports()
+    dbTest.reportCount = reports.length
 
     dbTest.step = 'done'
     dbTest.success = true
   } catch (e: any) {
     dbTest.success = false
     dbTest.errorName = e?.name
-    dbTest.errorCode = e?.code
     dbTest.errorMessage = e?.message
-    dbTest.errorStack = e?.stack?.split('\n').slice(0, 8).join('\n')
+    dbTest.errorStack = e?.stack?.split('\n').slice(0, 5).join('\n')
   }
 
   return NextResponse.json({
