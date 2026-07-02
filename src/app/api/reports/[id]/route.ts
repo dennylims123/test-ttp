@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getAdminSession } from '@/lib/ttp/admin-session'
 
 export async function GET(
   _req: NextRequest,
@@ -73,12 +74,16 @@ export async function DELETE(
   const report = await db.ttpReport.findUnique({ where: { id } })
   if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Published reports cannot be deleted (must be rejected first)
+  // PUBLISHED reports can only be deleted by admin.
+  // DRAFT reports can be deleted by anyone (supplier originally created them).
   if (report.status === 'PUBLISHED') {
-    return NextResponse.json(
-      { error: 'Laporan yang sudah dipublikasi tidak dapat dihapus. Buka kembali via Rekap Admin.' },
-      { status: 403 }
-    )
+    const session = await getAdminSession()
+    if (!session.isAdmin) {
+      return NextResponse.json(
+        { error: 'Laporan yang sudah dipublikasi hanya dapat dihapus oleh admin.' },
+        { status: 403 }
+      )
+    }
   }
 
   await db.ttpReport.delete({ where: { id } })

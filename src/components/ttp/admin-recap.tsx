@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Download, RefreshCw, Lock, Unlock, Eye, Factory, TrendingUp, BarChart3, Layers } from 'lucide-react'
+import { Download, RefreshCw, Lock, Unlock, Eye, Factory, TrendingUp, BarChart3, Layers, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface AdminReport {
@@ -111,6 +111,27 @@ export function AdminRecap({ onOpenReport }: Props) {
       refresh()
     } catch (e: any) {
       toast.error('Gagal: ' + e.message)
+    }
+  }
+
+  const deleteReport = async (id: string, name: string, status: string) => {
+    const statusLabel = status === 'PUBLISHED' ? 'yang sudah dipublikasi' : 'draft'
+    if (
+      !confirm(
+        `Hapus laporan ${statusLabel} "${name}"?\n\nTindakan ini tidak dapat dibatalkan. Semua data pemasok, agen, dan petani akan dihapus permanen.`
+      )
+    )
+      return
+    try {
+      const r = await fetch(`/api/reports/${id}`, { method: 'DELETE' })
+      if (!r.ok) {
+        const d = await r.json()
+        throw new Error(d.error || 'Failed')
+      }
+      toast.success('Laporan dihapus permanen')
+      refresh()
+    } catch (e: any) {
+      toast.error('Gagal menghapus: ' + e.message)
     }
   }
 
@@ -311,6 +332,15 @@ export function AdminRecap({ onOpenReport }: Props) {
                             <Unlock className="h-3.5 w-3.5" />
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-destructive hover:text-destructive"
+                          onClick={() => deleteReport(r.id, r.name, r.status)}
+                          title="Hapus laporan permanen"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
