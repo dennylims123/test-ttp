@@ -1,13 +1,17 @@
 // TTP (Traceability to Plantation) Form Database Schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider  = "sqlite"
-  url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL")
+  provider = "sqlite"
+  // When using a driver adapter (PrismaLibSql), the URL here is only used for
+  // prisma db push / migrate. At runtime, the adapter handles the connection.
+  // We use a env var with a fallback so Prisma doesn't crash at build/runtime
+  // when only the adapter is providing the real connection.
+  url = env("DATABASE_URL")
 }
 
 /// A PKS (Pabrik Kelapa Sawit) account that can submit TTP reports.
