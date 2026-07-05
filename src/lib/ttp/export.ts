@@ -242,6 +242,127 @@ export async function exportTtpToExcel(report: RawReport): Promise<Buffer> {
     report.p1m_nilai_ttp ?? '',
   ])
 
+  // Sheet 6: Traceability Calculation
+  const traceSheet = wb.addWorksheet('Traceability Calculation')
+
+  // Build agen map for Rule C (Agen traceability)
+  const traceAgenMap = new Map<number, any[]>()
+  dedupedAgen.forEach((a: any) => {
+    const seenF = new Set<number>()
+    const dFarmers = (a.farmers || []).filter((f: any) => {
+      if (seenF.has(f.no)) return false
+      seenF.add(f.no)
+      return true
+    })
+    const linkedNo = a.linked_supplier_no
+    if (linkedNo != null) {
+      traceAgenMap.set(linkedNo, dFarmers)
+    }
+  })
+
+  traceSheet.addRow(['Perhitungan % Volume TBS Traceable'])
+  traceSheet.addRow([])
+  traceSheet.addRow(['Rumus Traceability:'])
+  traceSheet.addRow(['a. Internal (Kebun Inti/Plasma): Traceable jika Peta Kebun = Ya'])
+  traceSheet.addRow(['b. External (Petani/Perusahaan/Koperasi/Gapoktan/Plasma): Traceable jika ada Koordinat (Lintang+Bujur) DAN Desa'])
+  traceSheet.addRow(['c. Agen/Pengumpul: Traceable jika ada list petani dengan minimal Koordinat ATAU Desa'])
+  traceSheet.addRow([])
+  traceSheet.addRow([])
+
+  // Summary row
+  let traceTotalVolume = 0
+  let traceTraceableVolume = 0
+
+  allSuppliers.forEach((s: any) => {
+    traceTotalVolume += s.volume_tbs || 0
+  })
+
+  // Per-supplier table
+  traceSheet.addRow(['No', 'Nama Pemasok', 'Jenis', 'Section', 'Volume TBS (ton)', 'Peta Kebun', 'Lintang', 'Bujur', 'Desa', 'Jml Petani', 'Traceable?', 'Alasan'])
+
+  allSuppliers.forEach((s: any, i: number) => {
+    const vol = s.volume_tbs || 0
+    let isTraceable = false
+    let alasan = ''
+
+    if (s.section === 'internal') {
+      isTraceable = s.peta_kebun === 'Ya'
+      alasan = isTraceable ? 'Peta Kebun = Ya' : 'Peta Kebun ≠ Ya'
+    } else if (s.jenis_pemasok === 'Agen / Pengumpul / Ramp') {
+      const farmers = traceAgenMap.get(s.no) || []
+      const hasFarmerData = farmers.length > 0 && farmers.some((f: any) =>
+        (f.lintang && f.bujur) || f.desa
+      )
+      isTraceable = hasFarmerData
+      alasan = isTraceable
+        ? `Ada ${farmers.length} petani dengan koordinat/desa`
+        : farmers.length === 0 ? 'Belum ada petani' : 'Petani tidak punya koordinat/desa'
+    } else {
+      const hasCoord = !!(s.lintang && s.bujur)
+      const hasDesa = !!s.desa
+      isTraceable = hasCoord && hasDesa
+      alasan = isTraceable
+        ? 'Ada koordinat + desa'
+        : !hasCoord && !hasDesa ? 'Tidak ada koordinat & desa'
+        : !hasCoord ? 'Tidak ada koordinat'
+        : 'Tidak ada desa'
+    }
+
+    if (isTraceable) traceTraceableVolume += vol
+
+    const farmers = traceAgenMap.get(s.no) || []
+    traceSheet.addRow([
+      i + 1,
+      s.nama_pemasok || '',
+      s.jenis_pemasok || '',
+      s.section,
+      vol,
+      s.peta_kebun || '',
+      s.lintang || '',
+      s.bujur || '',
+      s.desa || '',
+      farmers.length || '',
+      isTraceable ? 'YA' : 'TIDAK',
+      alasan,
+    ])
+  })
+
+  traceSheet.addRow([])
+  traceSheet.addRow([])
+  traceSheet.addRow(['RINGKASAN TRACEABILITY'])
+  traceSheet.addRow(['Total Volume TBS', traceTotalVolume])
+  traceSheet.addRow(['Volume TBS Traceable', traceTraceableVolume])
+  traceSheet.addRow(['Volume TBS Tidak Traceable', traceTotalVolume - traceTraceableVolume])
+  const ttpPct = traceTotalVolume > 0 ? (traceTraceableVolume / traceTotalVolume * 100) : 0
+  traceSheet.addRow(['% Volume Traceable', `${ttpPct.toFixed(2)}%`])
+
+  // Style header rows
+  const traceHeaderRow = traceSheet.getRow(11) // The row with column headers
+  traceHeaderRow.font = { bold: true }
+  traceHeaderRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } }
+
+  // Style summary
+  const summaryStartRow = traceSheet.rowCount - 4
+  traceSheet.getRow(summaryStartRow).font = { bold: true, size: 13 }
+  traceSheet.getRow(summaryStartRow + 4).font = { bold: true, size: 14 }
+  if (ttpPct >= 95) {
+    traceSheet.getRow(summaryStartRow + 4).font = { bold: true, size: 14, color: { argb: 'FF22C55E' } }
+  } else if (ttpPct >= 50) {
+    traceSheet.getRow(summaryStartRow + 4).font = { bold: true, size: 14, color: { argb: 'FFF59E0B' } }
+  } else {
+    traceSheet.getRow(summaryStartRow + 4).font = { bold: true, size: 14, color: { argb: 'FFEF4444' } }
+  }
+
+  // Color the Traceable column (column K = 11)
+  for (let r = 12; r <= 11 + allSuppliers.length; r++) {
+    const cell = traceSheet.getCell(`K${r}`)
+    if (cell.value === 'YA') {
+      cell.font = { color: { argb: 'FF22C55E' }, bold: true }
+    } else {
+      cell.font = { color: { argb: 'FFEF4444' }, bold: true }
+    }
+  }
+
   const buf = await wb.xlsx.writeBuffer()
   return Buffer.from(buf)
 }
