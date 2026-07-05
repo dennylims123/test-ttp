@@ -385,8 +385,25 @@ export const useTtpStore = create<TtpState>((set, get) => ({
       msdStatus: s.msdStatus ?? s.msd_status ?? null,
     }))
 
+    // DEDUPLICATE suppliers by (section + no) — prevents old DB duplicates from persisting
+    const seenSuppliers = new Set<string>()
+    const dedupedSuppliers = suppliers.filter((s) => {
+      const key = `${s.section}-${s.no}`
+      if (seenSuppliers.has(key)) return false
+      seenSuppliers.add(key)
+      return true
+    })
+
     // Load existing agen (with farmer lists preserved), then re-sync from suppliers
-    const existingAgen: AgenPengumpulRow[] = (data.agenPengumpul || data.agen_pengumpul || []).map((a: any) => ({
+    // DEDUPLICATE agen by no, and farmers by no within each agen
+    const seenAgen = new Set<number>()
+    const existingAgen: AgenPengumpulRow[] = (data.agenPengumpul || data.agen_pengumpul || [])
+      .filter((a: any) => {
+        if (seenAgen.has(a.no)) return false
+        seenAgen.add(a.no)
+        return true
+      })
+      .map((a: any) => ({
       id: a.id,
       no: a.no,
       namaAgen: a.namaAgen || a.nama_agen || '',
@@ -396,19 +413,26 @@ export const useTtpStore = create<TtpState>((set, get) => ({
       desaSumber: a.desaSumber || a.desa_sumber || '',
       volumeTbs: a.volumeTbs ?? a.volume_tbs ?? null,
       linkedSupplierNo: a.linkedSupplierNo ?? a.linked_supplier_no ?? null,
-      farmers: (a.farmers || []).map((f: any) => ({
-        id: f.id,
-        no: f.no,
-        nama: f.nama || '',
-        lintang: f.lintang || '',
-        bujur: f.bujur || '',
-        legalitas: f.legalitas || '',
-        desa: f.desa || '',
-        kecamatan: f.kecamatan || '',
-        kabupaten: f.kabupaten || '',
-        luasKebun: f.luasKebun ?? f.luas_kebun ?? null,
-        msdStatus: f.msdStatus ?? f.msd_status ?? null,
-      })),
+      farmers: (() => {
+        const seenFarmer = new Set<number>()
+        return (a.farmers || []).filter((f: any) => {
+          if (seenFarmer.has(f.no)) return false
+          seenFarmer.add(f.no)
+          return true
+        }).map((f: any) => ({
+          id: f.id,
+          no: f.no,
+          nama: f.nama || '',
+          lintang: f.lintang || '',
+          bujur: f.bujur || '',
+          legalitas: f.legalitas || '',
+          desa: f.desa || '',
+          kecamatan: f.kecamatan || '',
+          kabupaten: f.kabupaten || '',
+          luasKebun: f.luasKebun ?? f.luas_kebun ?? null,
+          msdStatus: f.msdStatus ?? f.msd_status ?? null,
+        }))
+      })(),
     }))
 
     set({
@@ -439,8 +463,8 @@ export const useTtpStore = create<TtpState>((set, get) => ({
         nilaiTtp: data.p1mNilaiTtp ?? data.p1m_nilai_ttp ?? null,
         sistemDetail: data.p1mSistemDetail || data.p1m_sistem_detail || '',
       },
-      suppliers,
-      agen: syncAgenFromSuppliers(suppliers, existingAgen),
+      suppliers: dedupedSuppliers,
+      agen: syncAgenFromSuppliers(dedupedSuppliers, existingAgen),
       isDirty: false,
     })
   },
