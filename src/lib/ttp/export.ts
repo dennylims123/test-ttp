@@ -91,9 +91,18 @@ export async function exportTtpToExcel(report: RawReport): Promise<Buffer> {
   suppSheet.addRow(['A. Internal - Sumber TBS yang berasal dari Kebun Inti dan Plasma'])
   suppSheet.addRow(['No', 'Nama Pemasok', 'Jenis Pemasok', 'Jumlah Pemasok (Petani)', 'Sertifikasi RSPO/ISPO', 'Desa', 'Kecamatan', 'Kabupaten', 'Lintang', 'Bujur', 'Status Legalitas', 'Luasan Areal (ha)', 'Peta Kebun', 'Volume TBS (ton)', '% Volume', 'Status MSD/SSD'])
 
-  const internal = report.suppliers.filter((s: any) => s.section === 'internal')
-  const external = report.suppliers.filter((s: any) => s.section === 'external')
-  const totalVolume = report.suppliers.reduce((acc: number, s: any) => acc + (s.volume_tbs || 0), 0) || 0
+  // DEDUPLICATE suppliers by (section + no) before exporting
+  const seenSupplier = new Set<string>()
+  const allSuppliers = (report.suppliers || []).filter((s: any) => {
+    const key = `${s.section}-${s.no}`
+    if (seenSupplier.has(key)) return false
+    seenSupplier.add(key)
+    return true
+  })
+
+  const internal = allSuppliers.filter((s: any) => s.section === 'internal')
+  const external = allSuppliers.filter((s: any) => s.section === 'external')
+  const totalVolume = allSuppliers.reduce((acc: number, s: any) => acc + (s.volume_tbs || 0), 0) || 0
   const internalVolume = internal.reduce((acc: number, s: any) => acc + (s.volume_tbs || 0), 0)
   const externalVolume = external.reduce((acc: number, s: any) => acc + (s.volume_tbs || 0), 0)
 
@@ -135,7 +144,22 @@ export async function exportTtpToExcel(report: RawReport): Promise<Buffer> {
   const agenSheet = wb.addWorksheet('Agen-Pengumpul (Petani)')
   agenSheet.addRow(['PHASE 2B. Pernyataan Pemasok TBS Tidak Langsung (Agen/Pengumpul)'])
 
-  report.agenPengumpul.forEach((a, idx) => {
+  // DEDUPLICATE agen by no, and farmers by no within each agen
+  const seenAgenExport = new Set<number>()
+  const dedupedAgen = (report.agenPengumpul || report.agen_pengumpul || []).filter((a: any) => {
+    if (seenAgenExport.has(a.no)) return false
+    seenAgenExport.add(a.no)
+    return true
+  })
+
+  dedupedAgen.forEach((a: any, idx: number) => {
+    // Dedup farmers within this agen
+    const seenFarmerExport = new Set<number>()
+    const dedupedFarmers = (a.farmers || []).filter((f: any) => {
+      if (seenFarmerExport.has(f.no)) return false
+      seenFarmerExport.add(f.no)
+      return true
+    })
     agenSheet.addRow([`Agen #${idx + 1}`])
     agenSheet.addRow(['Nama Agen/Pengumpul', a.nama_agen || ''])
     agenSheet.addRow(['Alamat', a.alamat || ''])
@@ -145,8 +169,8 @@ export async function exportTtpToExcel(report: RawReport): Promise<Buffer> {
     agenSheet.addRow(['Volume TBS yang dipasok ke PKS (ton)', a.volume_tbs ?? ''])
     agenSheet.addRow([])
     agenSheet.addRow(['No', 'Nama Petani', 'Lintang', 'Bujur', 'Legalitas', 'Desa', 'Kecamatan', 'Kabupaten', 'Luas Kebun (Ha)', '% Luas', 'Est. Volume (ton)', 'Status MSD/SSD'])
-    const totalLuas = a.farmers.reduce((acc: number, f: any) => acc + (f.luas_kebun || 0), 0)
-    a.farmers.forEach((f: any, i: number) => {
+    const totalLuas = dedupedFarmers.reduce((acc: number, f: any) => acc + (f.luas_kebun || 0), 0)
+    dedupedFarmers.forEach((f: any, i: number) => {
       const pctLuas = totalLuas > 0 && f.luas_kebun ? f.luas_kebun / totalLuas : 0
       agenSheet.addRow([
         i + 1, f.nama || '', f.lintang || '', f.bujur || '', f.legalitas || '',
