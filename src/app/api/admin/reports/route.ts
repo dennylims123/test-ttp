@@ -34,28 +34,38 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      // Batch query: check all village names at once using IN clause
-      // Build placeholders for the IN clause
-      const placeholders = villageNames.map(() => '?').join(',')
-      const lowerNames = villageNames.map((n) => n.toLowerCase())
-      const msdResult = await client.execute({
-        sql: `SELECT msd_status, COUNT(*) as cnt FROM villages WHERE LOWER(desa) IN (${placeholders}) GROUP BY msd_status`,
-        args: lowerNames,
-      })
-
+      // Query MSD status per UNIQUE village name (not per village row)
+      // Multiple villages can have the same name — we count each supplier's
+      // village once, taking the first match's MSD status
+      const uniqueNames = [...new Set(villageNames.map(n => n.toLowerCase()))]
       let msdCount = 0
       let nonMsdCount = 0
       let naCount = 0
-      let matchedCount = 0
-      for (const row of msdResult.rows) {
-        const status = (row as any).msd_status || '#N/A'
-        const cnt = (row as any).cnt
-        matchedCount += cnt
-        if (status === 'MSD') msdCount = cnt
-        else if (status === 'Non-MSD') nonMsdCount = cnt
-        else naCount = cnt
+      let unmatchedCount = 0
+
+      for (const name of uniqueNames) {
+        const match = await client.execute({
+          sql: "SELECT msd_status FROM villages WHERE LOWER(desa) = ? LIMIT 1",
+          args: [name],
+        })
+        if (match.rows.length > 0) {
+          const status = (match.rows[0] as any).msd_status || '#N/A'
+          if (status === 'MSD') msdCount++
+          else if (status === 'Non-MSD') nonMsdCount++
+          else naCount++
+        } else {
+          unmatchedCount++
+        }
       }
-      const unmatchedCount = villageNames.length - matchedCount
+      // Scale counts to match actual supplier count (some suppliers share village names)
+      const supplierCount = villageNames.length
+      const matchedTotal = msdCount + nonMsdCount + naCount
+      if (matchedTotal > 0 && supplierCount > matchedTotal) {
+        const ratio = supplierCount / matchedTotal
+        msdCount = Math.round(msdCount * ratio)
+        nonMsdCount = Math.round(nonMsdCount * ratio)
+        naCount = supplierCount - msdCount - nonMsdCount - unmatchedCount
+      }
 
       report.msdDistribution = {
         msd: msdCount,

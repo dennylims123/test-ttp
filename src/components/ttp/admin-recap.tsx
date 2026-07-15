@@ -246,7 +246,7 @@ export function AdminRecap({ onOpenReport }: Props) {
                 <TableHead className="text-center">Agen</TableHead>
                 <TableHead className="text-center">MSD / Non-MSD / N/A</TableHead>
                 <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('updatedAt')}>
-                  Diperbarui {sortKey === 'updatedAt' && (sortAsc ? '↑' : '↓')}
+                  Tanggal Submit {sortKey === 'updatedAt' && (sortAsc ? '↑' : '↓')}
                 </TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
@@ -321,11 +321,19 @@ export function AdminRecap({ onOpenReport }: Props) {
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {new Date(r.updatedAt).toLocaleDateString('id-ID', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
+                      {(() => {
+                        const dateStr = r.publishedAt || r.updatedAt
+                        if (!dateStr) return '-'
+                        const d = new Date(dateStr)
+                        if (isNaN(d.getTime())) return '-'
+                        return d.toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
