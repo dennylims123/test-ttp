@@ -139,9 +139,13 @@ function rowsToObjects(rows: Record<string, any>[]): any[] {
 // ============= VILLAGE =============
 export async function searchVillages(q: string, limit: number = 30): Promise<Village[]> {
   const client = getClient()
+  const lowerQ = q.toLowerCase()
   const result = await client.execute({
-    sql: 'SELECT id, desa, full, msd_status FROM villages WHERE desa LIKE ? OR full LIKE ? ORDER BY desa ASC LIMIT ?',
-    args: [`%${q}%`, `%${q}%`, limit],
+    sql: `SELECT id, desa, full, msd_status FROM villages
+          WHERE LOWER(desa) LIKE ? OR LOWER(full) LIKE ?
+          ORDER BY CASE WHEN LOWER(desa) LIKE ? THEN 0 ELSE 1 END, desa ASC
+          LIMIT ?`,
+    args: [`%${lowerQ}%`, `%${lowerQ}%`, `%${lowerQ}%`, limit],
   })
   return rowsToObjects(result.rows) as Village[]
 }
