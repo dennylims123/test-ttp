@@ -139,13 +139,12 @@ function rowsToObjects(rows: Record<string, any>[]): any[] {
 // ============= VILLAGE =============
 export async function searchVillages(q: string, limit: number = 30): Promise<Village[]> {
   const client = getClient()
+  // Use simple LIKE with lowercase query — SQLite LIKE is case-insensitive for ASCII
+  // For non-ASCII, we search both original and lowercase
   const lowerQ = q.toLowerCase()
   const result = await client.execute({
-    sql: `SELECT id, desa, full, msd_status FROM villages
-          WHERE LOWER(desa) LIKE ? OR LOWER(full) LIKE ?
-          ORDER BY CASE WHEN LOWER(desa) LIKE ? THEN 0 ELSE 1 END, desa ASC
-          LIMIT ?`,
-    args: [`%${lowerQ}%`, `%${lowerQ}%`, `%${lowerQ}%`, limit],
+    sql: 'SELECT id, desa, full, msd_status FROM villages WHERE desa LIKE ? OR full LIKE ? OR desa LIKE ? OR full LIKE ? ORDER BY desa ASC LIMIT ?',
+    args: [`%${q}%`, `%${q}%`, `%${lowerQ}%`, `%${lowerQ}%`, limit],
   })
   return rowsToObjects(result.rows) as Village[]
 }
