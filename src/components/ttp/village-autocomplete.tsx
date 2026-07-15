@@ -36,7 +36,7 @@ export function VillageAutocomplete({ value, onChange, placeholder, className }:
     const ctrl = new AbortController()
     abortRef.current = ctrl
     setLoading(true)
-    fetch(`/api/villages?q=${encodeURIComponent(q)}&limit=20`, { signal: ctrl.signal })
+    fetch(`/api/villages?q=${encodeURIComponent(q)}&limit=50`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data: Village[]) => {
         setResults(data)
