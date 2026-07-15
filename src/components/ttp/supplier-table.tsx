@@ -4,6 +4,8 @@ import { useTtpStore } from '@/lib/ttp/store'
 import {
   JENIS_INTERNAL,
   JENIS_EKSTERNAL,
+  JENIS_PLANTATION,
+  JENIS_SMALLHOLDER,
   LEGALITAS_OPTIONS,
   YA_TIDAK,
   estimateMaxTbs,
@@ -21,12 +23,18 @@ const AGEN_JENIS = 'Agen / Pengumpul / Ramp'
 interface Props {
   section: 'internal' | 'external'
   readOnly?: boolean
+  jenisFilter?: readonly string[]
+  title?: string
 }
 
-export function SupplierTable({ section, readOnly = false }: Props) {
+export function SupplierTable({ section, readOnly = false, jenisFilter, title }: Props) {
   const { suppliers, addSupplier, updateSupplier, removeSupplier, jumpToAgen, agen } = useTtpStore()
-  const rows = suppliers.filter((s) => s.section === section)
-  const jenisOptions = section === 'internal' ? JENIS_INTERNAL : JENIS_EKSTERNAL
+  const rows = suppliers.filter((s) => {
+    if (s.section !== section) return false
+    if (jenisFilter && !jenisFilter.includes(s.jenisPemasok)) return false
+    return true
+  })
+  const jenisOptions = section === 'internal' ? JENIS_INTERNAL : (jenisFilter ? jenisFilter : JENIS_EKSTERNAL)
 
   const subtotalVolume = rows.reduce((acc, r) => acc + (r.volumeTbs || 0), 0)
   const grandTotal = suppliers.reduce((acc, r) => acc + (r.volumeTbs || 0), 0)

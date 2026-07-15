@@ -9,6 +9,26 @@ export const JENIS_EKSTERNAL = [
   'Gapoktan/Poktan',
 ] as const
 
+// 3-way supply category classification (DMA / Independent Plantation / Independent Smallholder)
+export const JENIS_PLANTATION = [
+  'Perusahaan Perkebunan Pihak Ketiga',
+  'Kebun Pribadi Pihak Ketiga/Petani',
+] as const
+
+export const JENIS_SMALLHOLDER = [
+  'Agen / Pengumpul / Ramp',
+  'Koperasi',
+  'Gapoktan/Poktan',
+] as const
+
+export type SupplyCategory = 'DMA' | 'Independent Plantation' | 'Independent Smallholder'
+
+export function getSupplyCategory(s: SupplierRow): SupplyCategory {
+  if (s.section === 'internal') return 'DMA'
+  if (JENIS_PLANTATION.includes(s.jenisPemasok as any)) return 'Independent Plantation'
+  return 'Independent Smallholder'
+}
+
 export const PERIODE_OPTIONS = [
   '1 Januari - 31 Desember 2025',
   '1 Januari - 30 Juni 2025',

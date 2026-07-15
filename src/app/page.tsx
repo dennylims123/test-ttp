@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTtpStore } from '@/lib/ttp/store'
 import { SupplierTable } from '@/components/ttp/supplier-table'
+import { JENIS_PLANTATION, JENIS_SMALLHOLDER } from '@/lib/ttp/types'
 import { AgenForm } from '@/components/ttp/agen-form'
 import { SummaryPanel } from '@/components/ttp/summary-panel'
 import { RekapanTtp } from '@/components/ttp/rekapan-ttp'
@@ -655,9 +656,9 @@ function FormView({
           <TabsContent value="supplier" className="mt-4 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">A. Internal — Kebun Inti & Plasma</CardTitle>
+                <CardTitle className="text-base">A. Internal — DMA (Directly Managed Areas)</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Sumber TBS yang berasal dari Kebun Inti milik perusahaan dan Plasma / KKPA / Kemitraan
+                  Kebun Inti milik perusahaan dan Plasma / KKPA / Kemitraan
                 </p>
               </CardHeader>
               <CardContent>
@@ -667,13 +668,25 @@ function FormView({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">B. Eksternal — Pemasok Pihak Ketiga</CardTitle>
+                <CardTitle className="text-base">B. Eksternal — Independent Plantation</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Perusahaan Perkebunan, Kebun Pribadi, Koperasi, Agen/Pengumpul, Gapoktan/Poktan
+                  Perusahaan Perkebunan Pihak Ketiga, Kebun Pribadi Pihak Ketiga
                 </p>
               </CardHeader>
               <CardContent>
-                <SupplierTable section="external" readOnly={isLocked} />
+                <SupplierTable section="external" readOnly={isLocked} jenisFilter={JENIS_PLANTATION} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">C. Eksternal — Independent Smallholder</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Agen / Pengumpul / Ramp, Koperasi, Gapoktan / Poktan
+                </p>
+              </CardHeader>
+              <CardContent>
+                <SupplierTable section="external" readOnly={isLocked} jenisFilter={JENIS_SMALLHOLDER} />
               </CardContent>
             </Card>
 

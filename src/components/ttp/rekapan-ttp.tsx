@@ -1,7 +1,7 @@
 'use client'
 
 import { useTtpStore } from '@/lib/ttp/store'
-import { computeSummary, computeTtpPercent } from '@/lib/ttp/types'
+import { computeSummary, computeTtpPercent, getSupplyCategory } from '@/lib/ttp/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,6 +29,10 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
   const autoTbsInti = s.internal.kebunInti.volume
   const autoTbsPlasma = s.internal.plasma.volume
   const autoTbsMandiri = s.externalVolume
+  // 3-way category volumes
+  const dmaVolume = suppliers.filter((s) => getSupplyCategory(s) === 'DMA').reduce((a, s) => a + (s.volumeTbs || 0), 0)
+  const plantationVolume = suppliers.filter((s) => getSupplyCategory(s) === 'Independent Plantation').reduce((a, s) => a + (s.volumeTbs || 0), 0)
+  const smallholderVolume = suppliers.filter((s) => getSupplyCategory(s) === 'Independent Smallholder').reduce((a, s) => a + (s.volumeTbs || 0), 0)
 
   return (
     <div className="space-y-6">
@@ -128,18 +132,18 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
               derived
             />
             <StatBox
-              label="TBS Kebun Inti (Ton)"
-              value={fmt(autoTbsInti)}
+              label="DMA — Internal (Ton)"
+              value={fmt(dmaVolume)}
               derived
             />
             <StatBox
-              label="TBS Plasma (Ton)"
-              value={fmt(autoTbsPlasma)}
+              label="Independent Plantation (Ton)"
+              value={fmt(plantationVolume)}
               derived
             />
             <StatBox
-              label="TBS Pemasok Mandiri (Ton)"
-              value={fmt(autoTbsMandiri)}
+              label="Independent Smallholder (Ton)"
+              value={fmt(smallholderVolume)}
               derived
             />
             <StatBox
@@ -262,19 +266,27 @@ export function RekapanTtp({ readOnly = false }: RekapanTtpProps) {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Pasokan Internal</Label>
+                <Label className="text-[11px] text-muted-foreground">DMA (Internal)</Label>
                 <div className="text-sm font-semibold tabular-nums">
-                  {s.internalVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Ton
+                  {dmaVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Ton
                   {' '}
-                  ({(s.internalPct * 100).toFixed(1)}%)
+                  ({s.totalVolume > 0 ? ((dmaVolume / s.totalVolume) * 100).toFixed(1) : 0}%)
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Pasokan Eksternal</Label>
+                <Label className="text-[11px] text-muted-foreground">Independent Plantation</Label>
                 <div className="text-sm font-semibold tabular-nums">
-                  {s.externalVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Ton
+                  {plantationVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Ton
                   {' '}
-                  ({(s.externalPct * 100).toFixed(1)}%)
+                  ({s.totalVolume > 0 ? ((plantationVolume / s.totalVolume) * 100).toFixed(1) : 0}%)
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Independent Smallholder</Label>
+                <div className="text-sm font-semibold tabular-nums">
+                  {smallholderVolume.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Ton
+                  {' '}
+                  ({s.totalVolume > 0 ? ((smallholderVolume / s.totalVolume) * 100).toFixed(1) : 0}%)
                 </div>
               </div>
               <div className="space-y-1">

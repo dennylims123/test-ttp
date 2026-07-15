@@ -1,7 +1,7 @@
 'use client'
 
 import { useTtpStore } from '@/lib/ttp/store'
-import { computeSummary, computeTtpPercent, type SupplierRow } from '@/lib/ttp/types'
+import { computeSummary, computeTtpPercent, getSupplyCategory, type SupplierRow } from '@/lib/ttp/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -23,6 +23,14 @@ export function SummaryPanel({ isAdmin = false }: { isAdmin?: boolean }) {
   const s = computeSummary(suppliers)
   const ttpPct = computeTtpPercent(suppliers)
 
+  // 3-way category split
+  const dmaVolume = suppliers.filter((s) => getSupplyCategory(s) === 'DMA').reduce((a, s) => a + (s.volumeTbs || 0), 0)
+  const plantationVolume = suppliers.filter((s) => getSupplyCategory(s) === 'Independent Plantation').reduce((a, s) => a + (s.volumeTbs || 0), 0)
+  const smallholderVolume = suppliers.filter((s) => getSupplyCategory(s) === 'Independent Smallholder').reduce((a, s) => a + (s.volumeTbs || 0), 0)
+  const dmaPct = s.totalVolume > 0 ? dmaVolume / s.totalVolume : 0
+  const plantationPct = s.totalVolume > 0 ? plantationVolume / s.totalVolume : 0
+  const smallholderPct = s.totalVolume > 0 ? smallholderVolume / s.totalVolume : 0
+
   const cards = [
     {
       label: 'Total Volume TBS',
@@ -32,15 +40,22 @@ export function SummaryPanel({ isAdmin = false }: { isAdmin?: boolean }) {
       bg: 'bg-permata-green-light',
     },
     {
-      label: 'Pasokan Internal',
-      value: `${fmt(s.internalVolume)} ton (${pctStr(s.internalPct)})`,
+      label: 'DMA (Internal)',
+      value: `${fmt(dmaVolume)} ton (${pctStr(dmaPct)})`,
       icon: Trees,
       color: 'text-permata-forest',
       bg: 'bg-permata-green-light',
     },
     {
-      label: 'Pasokan Eksternal',
-      value: `${fmt(s.externalVolume)} ton (${pctStr(s.externalPct)})`,
+      label: 'Independent Plantation',
+      value: `${fmt(plantationVolume)} ton (${pctStr(plantationPct)})`,
+      icon: Factory,
+      color: 'text-permata-teal',
+      bg: 'bg-permata-teal-light-bg',
+    },
+    {
+      label: 'Independent Smallholder',
+      value: `${fmt(smallholderVolume)} ton (${pctStr(smallholderPct)})`,
       icon: Users,
       color: 'text-amber-600',
       bg: 'bg-amber-50',
@@ -57,7 +72,7 @@ export function SummaryPanel({ isAdmin = false }: { isAdmin?: boolean }) {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
         {cards.map((c) => {
           const Icon = c.icon
           return (
