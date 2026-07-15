@@ -351,7 +351,7 @@ export function SupplierTable({ section, readOnly = false, jenisFilter, title }:
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         {!readOnly && (
-          <Button variant="outline" size="sm" onClick={() => addSupplier(section)}>
+          <Button variant="outline" size="sm" onClick={() => addSupplier(section, jenisOptions[0] as string)}>
             <Plus className="h-4 w-4 mr-1.5" />
             Tambah Baru
           </Button>

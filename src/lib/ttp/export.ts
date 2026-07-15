@@ -119,10 +119,22 @@ export async function exportTtpToExcel(report: RawReport): Promise<Buffer> {
 
   suppSheet.addRow(['Sub-Total Penerimaan TBS dari Kebun Inti dan Plasma', '', '', '', '', '', '', '', '', '', '', '', '', internalVolume, totalVolume > 0 ? internalVolume / totalVolume : 0, ''])
   suppSheet.addRow([])
-  suppSheet.addRow(['B. Eksternal'])
-  suppSheet.addRow(['No', 'Nama Pemasok', 'Jenis Pemasok', 'Jumlah Pemasok (Petani)', 'Sertifikasi RSPO/ISPO', 'Desa', 'Kecamatan', 'Kabupaten', 'Lintang', 'Bujur', 'Status Legalitas', 'Luasan Areal (ha)', 'Peta Kebun', 'Volume TBS (ton)', '% Volume', 'Status MSD/SSD'])
+  // Split external into B (Plantation) and C (Smallholder)
+  const plantationExt = external.filter((s: any) =>
+    s.jenis_pemasok === 'Perusahaan Perkebunan Pihak Ketiga' ||
+    s.jenis_pemasok === 'Kebun Pribadi Pihak Ketiga/Petani'
+  )
+  const smallholderExt = external.filter((s: any) =>
+    s.jenis_pemasok === 'Agen / Pengumpul / Ramp' ||
+    s.jenis_pemasok === 'Koperasi' ||
+    s.jenis_pemasok === 'Gapoktan/Poktan'
+  )
+  const plantationVol = plantationExt.reduce((a: number, s: any) => a + (s.volume_tbs || 0), 0)
+  const smallholderVol = smallholderExt.reduce((a: number, s: any) => a + (s.volume_tbs || 0), 0)
 
-  external.forEach((s: any, i: number) => {
+  suppSheet.addRow(['B. Eksternal — Independent Plantation'])
+  suppSheet.addRow(['No', 'Nama Pemasok', 'Jenis Pemasok', 'Jumlah Pemasok (Petani)', 'Sertifikasi RSPO/ISPO', 'Desa', 'Kecamatan', 'Kabupaten', 'Lintang', 'Bujur', 'Status Legalitas', 'Luasan Areal (ha)', 'Peta Kebun', 'Volume TBS (ton)', '% Volume', 'Status MSD/SSD'])
+  plantationExt.forEach((s: any, i: number) => {
     suppSheet.addRow([
       i + 1, s.nama_pemasok || '', s.jenis_pemasok || '', s.jumlah_petani ?? '',
       s.sertifikasi || '', s.desa || '', s.kecamatan || '', s.kabupaten || '',
@@ -132,8 +144,23 @@ export async function exportTtpToExcel(report: RawReport): Promise<Buffer> {
       s.msdStatus || s.msd_status || (s.desa ? '#N/A' : ''),
     ])
   })
+  suppSheet.addRow(['Sub-Total Independent Plantation', '', '', '', '', '', '', '', '', '', '', '', '', plantationVol, totalVolume > 0 ? plantationVol / totalVolume : 0, ''])
 
-  suppSheet.addRow(['Sub-Total Penerimaan TBS dari Agen/Pengumpul/Dealer/Etc', '', '', '', '', '', '', '', '', '', '', '', '', externalVolume, totalVolume > 0 ? externalVolume / totalVolume : 0, ''])
+  suppSheet.addRow([])
+  suppSheet.addRow(['C. Eksternal — Independent Smallholder'])
+  suppSheet.addRow(['No', 'Nama Pemasok', 'Jenis Pemasok', 'Jumlah Pemasok (Petani)', 'Sertifikasi RSPO/ISPO', 'Desa', 'Kecamatan', 'Kabupaten', 'Lintang', 'Bujur', 'Status Legalitas', 'Luasan Areal (ha)', 'Peta Kebun', 'Volume TBS (ton)', '% Volume', 'Status MSD/SSD'])
+  smallholderExt.forEach((s: any, i: number) => {
+    suppSheet.addRow([
+      i + 1, s.nama_pemasok || '', s.jenis_pemasok || '', s.jumlah_petani ?? '',
+      s.sertifikasi || '', s.desa || '', s.kecamatan || '', s.kabupaten || '',
+      s.lintang || '', s.bujur || '', s.legalitas || '', s.luas_areal ?? '',
+      s.peta_kebun || '', s.volume_tbs ?? '',
+      totalVolume > 0 && s.volume_tbs ? s.volume_tbs / totalVolume : 0,
+      s.msdStatus || s.msd_status || (s.desa ? '#N/A' : ''),
+    ])
+  })
+  suppSheet.addRow(['Sub-Total Independent Smallholder', '', '', '', '', '', '', '', '', '', '', '', '', smallholderVol, totalVolume > 0 ? smallholderVol / totalVolume : 0, ''])
+
   suppSheet.addRow(['Total pembelian TBS yang diproses PKS =', '', '', '', '', '', '', '', '', '', '', '', '', totalVolume, 1, ''])
 
   suppSheet.getRow(7).font = { bold: true }

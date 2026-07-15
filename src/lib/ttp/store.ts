@@ -130,7 +130,7 @@ export interface TtpState {
 
   // suppliers
   setSuppliers: (rows: SupplierRow[]) => void
-  addSupplier: (section: 'internal' | 'external') => void
+  addSupplier: (section: 'internal' | 'external', defaultJenis?: string) => void
   updateSupplier: (idx: number, patch: Partial<SupplierRow>) => void
   removeSupplier: (idx: number) => void
 
@@ -194,7 +194,7 @@ export const useTtpStore = create<TtpState>((set, get) => ({
       isDirty: true,
     })),
 
-  addSupplier: (section) =>
+  addSupplier: (section, defaultJenis) =>
     set((st) => {
       const sectionRows = st.suppliers.filter((s) => s.section === section)
       const no = sectionRows.length + 1
@@ -202,7 +202,7 @@ export const useTtpStore = create<TtpState>((set, get) => ({
         section,
         no,
         namaPemasok: '',
-        jenisPemasok: section === 'internal' ? 'Kebun Inti' : '',
+        jenisPemasok: section === 'internal' ? 'Kebun Inti' : (defaultJenis || ''),
         jumlahPetani: null,
         sertifikasi: 'Tidak',
         desa: '',
